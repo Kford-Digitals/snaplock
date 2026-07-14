@@ -16,7 +16,9 @@
 <body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col items-center p-4">
 
     <header class="w-full max-w-md text-center my-6">
-          <h1 onclick="triggerAdminMode()" class="text-3xl font-extrabold text-blue-500 tracking-wide cursor-pointer select-none">Campus SnapLock</h1>
+        <h1 onclick="triggerAdminMode()" class="text-3xl font-extrabold text-blue-500 tracking-wide cursor-pointer select-none">
+            Campus SnapLock
+        </h1>
         <p class="text-sm text-slate-400 mt-1">View once for free. Unlock forever for 1 GHS.</p>
     </header>
 
@@ -46,7 +48,7 @@
         </div>
     </div>
 
-        <main id="feedContainer" class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 my-6 px-2">
+    <main id="feedContainer" class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 my-6 px-2">
         <div id="loadingText" class="text-center text-sm text-slate-400 py-10">Loading campus feed...</div>
     </main>
 
@@ -56,10 +58,6 @@
         let isAdminMode = false;
 
         // 1. SUPABASE CREDENTIALS
-        const SUPABASE_URL = "https://ubsktyaaygnzkakwtkel.supabase.co";
-
-        
-        // 1. SUPABASE CREDENTIALS (Renamed variable to prevent initialization crash)
         const SUPABASE_URL = "https://ubsktyaaygnzkakwtkel.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_1vd3f0GnqdioHSkpd685lQ_kjwYzcr1";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -126,7 +124,7 @@
                             </div>
                         </div>
 
-                                                <div class="p-4 flex justify-between items-center">
+                        <div class="p-4 flex justify-between items-center">
                             <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
                             
                             <!-- Hidden Admin Delete Button -->
@@ -135,7 +133,6 @@
                                 Delete
                             </button>
                         </div>
-
                     `;
                     feedContainer.appendChild(card);
                 });
@@ -147,9 +144,7 @@
         }
 
         function startPeek(id) {
-            // Instantly mark as viewed in localStorage so refreshing mid-timer won't reset the free peek
             localStorage.setItem(id, 'viewed');
-            
             document.getElementById(`blurOverlay-${id}`).classList.add('hidden');
             
             setTimeout(() => {
@@ -158,7 +153,6 @@
         }
 
         function expirePeek(id) {
-            // Only trigger blur if it hasn't been paid for mid-peek
             if (localStorage.getItem(`unlocked_${id}`) !== 'true') {
                 const imgEl = document.getElementById(`image-${id}`);
                 const paywallEl = document.getElementById(`paywallOverlay-${id}`);
@@ -169,8 +163,6 @@
         }
 
         async function uploadPost() {
-            console.log("Upload button clicked!");
-            
             const fileInput = document.getElementById('imageInput');
             const captionInput = document.getElementById('captionInput');
             const uploadBtn = document.getElementById('uploadBtn');
@@ -197,21 +189,21 @@
             const fileName = `${Date.now()}.${fileExtension}`;
 
             try {
-                // 1. Upload file to Supabase Storage using correct client variable
+                // Upload file to Supabase Storage
                 const { data: storageData, error: storageError } = await supabaseClient.storage
                     .from('campus-images')
                     .upload(fileName, file);
 
                 if (storageError) throw storageError;
 
-                // 2. Fetch public url path
+                // Fetch public URL
                 const { data: urlData } = supabaseClient.storage
                     .from('campus-images')
                     .getPublicUrl(fileName);
 
                 const imageUrl = urlData.publicUrl;
 
-                // 3. Write data to database table row
+                // Write data to database table row
                 const { error: dbError } = await supabaseClient
                     .from('posts')
                     .insert([{ caption: caption, image_url: imageUrl }]);
@@ -244,11 +236,9 @@
                 callback: async function(response) {
                     alert('Payment Successful! Reference: ' + response.reference);
                     
-                    // Clear temporary viewed lock and set unlock authorization rule
                     localStorage.removeItem(postId); 
                     localStorage.setItem(`unlocked_${postId}`, 'true');
 
-                    // Refresh to show clear picture
                     await fetchFeed();
                 },
                 onClose: function() {
@@ -257,11 +247,62 @@
             });
 
             handler.openIframe();
+        }
+
+        // --- FULLY IMPLEMENTED ADMIN SYSTEM FUNCTIONS ---
+        function triggerAdminMode() {
+            const pass = prompt("Enter secret admin password to toggle management tools:");
+            if (pass === ADMIN_PASSWORD) {
+                isAdminMode = !isAdminMode;
+                alert(`Admin Mode is now ${isAdminMode ? "ENABLED" : "DISABLED"}.`);
+                
+                // Dynamically toggle visibility of all delete buttons on current layout
+                const deleteButtons = document.querySelectorAll('.delete-btn');
+                deleteButtons.forEach(btn => {
+                    if (isAdminMode) {
+                        btn.classList.remove('hidden');
+                    } else {
+                        btn.classList.add('hidden');
+                    }
+                });
+            } else if (pass !== null) {
+                alert("Incorrect Admin Key.");
+            }
+        }
+
+        async function deletePost(postId, imageUrl) {
+            if (!confirm("Are you sure you want to permanently delete this post and its image?")) return;
+
+            try {
+                // 1. Parse out the raw filename from the image URL to delete from bucket storage
+                const urlParts = imageUrl.split('/');
+                const fileName = urlParts[urlParts.length - 1];
+
+                // 2. Remove file from Supabase storage bucket
+                const { error: storageError } = await supabaseClient.storage
+                    .from('campus-images')
+                    .remove([fileName]);
+
+                if (storageError) {
+                    console.warn("Storage deletion warning (might already be deleted):", storageError.message);
                 }
 
-        // --- PASTE THEM HERE ---
-        function triggerAdminMode() { ... }
-        async function deletePost(postId, imageUrl) { ... }
+                // 3. Delete DB record
+                const { error: dbError } = await supabaseClient
+                    .from('posts')
+                    .delete()
+                    .eq('id', postId);
+
+                if (dbError) throw dbError;
+
+                alert("Post successfully purged.");
+                await fetchFeed();
+
+            } catch (error) {
+                console.error("Deletion failed:", error.message);
+                alert("Error deleting post: " + error.message);
+            }
+        }
     </script>
 </body>
 </html>
