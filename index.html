@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus SnapLock</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        .blur-heavy {
+            filter: blur(25px);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col items-center p-4">
+
+    <header class="w-full max-w-md text-center my-6">
+        <h1 class="text-3xl font-extrabold text-blue-500 tracking-wide">Campus SnapLock</h1>
+        <p class="text-sm text-slate-400 mt-1">View once for free. Unlock forever for 1 GHS.</p>
+    </header>
+
+    <div class="w-full max-w-md bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl mb-6">
+        <h2 class="text-md font-bold mb-3 text-slate-200 flex items-center gap-2">
+            <span>📤</span> Post New Hidden Campus Snap
+        </h2>
+        
+        <div class="space-y-3">
+            <label class="block">
+                <input type="file" id="imageInput" accept="image/*" 
+                       class="block w-full text-xs text-slate-400
+                              file:mr-4 file:py-2.5 file:px-4
+                              file:rounded-xl file:border-0
+                              file:text-xs file:font-semibold
+                              file:bg-blue-600 file:text-white
+                              hover:file:bg-blue-700 file:cursor-pointer cursor-pointer"/>
+            </label>
+
+            <input type="text" id="captionInput" placeholder="Write a juicy description or caption..." 
+                   class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all">
+
+            <button onclick="uploadPost()" id="uploadBtn" 
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2">
+                Upload to Cloud
+            </button>
+        </div>
+    </div>
+
+    <main id="feedContainer" class="w-full max-w-md space-y-6">
+        <div id="loadingText" class="text-center text-sm text-slate-400 py-10">Loading campus feed...</div>
+    </main>
+
+    <script>
+        // 1. SUPABASE CREDENTIALS (Renamed variable to prevent initialization crash)
+        const SUPABASE_URL = "https://ubsktyaaygnzkakwtkel.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_1vd3f0GnqdioHSkpd685lQ_kjwYzcr1";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // 2. Fetch all posts when page loads
+        window.onload = async function() {
+            await fetchFeed();
+        };
+
+        async function fetchFeed() {
+            const feedContainer = document.getElementById('feedContainer');
+            
+            try {
+                const { data: posts, error } = await supabaseClient
+                    .from('posts')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                feedContainer.innerHTML = "";
+
+                if (!posts || posts.length === 0) {
+                    feedContainer.innerHTML = `<div class="text-center text-sm text-slate-500 py-10">No snaps uploaded yet. Be the first!</div>`;
+                    return;
+                }
+
+                posts.forEach(post => {
+                    const isViewed = localStorage.getItem(post.id) === 'viewed';
+                    const isUnlocked = localStorage.getItem(`unlocked_${post.id}`) === 'true';
+                    
+                    // Show paywall only if they've peeked AND haven't paid yet
+                    const showPaywall = isViewed && !isUnlocked;
+
+                    const card = document.createElement('div');
+                    card.className = "bg-slate-800 rounded-2xl overflow-hidden shadow-xl border border-slate-700";
+                    card.innerHTML = `
+                        <div class="p-4 flex items-center justify-between border-b border-slate-700">
+                            <span class="font-semibold text-sm text-slate-200">@Anonymous_Peer</span>
+                            <span class="text-xs bg-slate-700 text-slate-400 px-2.5 py-1 rounded-full font-medium">Campus Feed</span>
+                        </div>
+
+                        <div class="relative bg-slate-950 aspect-square flex items-center justify-center overflow-hidden">
+                            <img id="image-${post.id}" src="${post.image_url}" 
+                                 class="w-full h-full object-cover transition-all duration-300 ${showPaywall ? 'blur-heavy' : ''}" alt="Campus Post">
+
+                            <div id="blurOverlay-${post.id}" class="absolute inset-0 bg-slate-950/40 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center ${isViewed || isUnlocked ? 'hidden' : ''}">
+                                <span class="text-4xl mb-3">👀</span>
+                                <h3 class="font-bold text-lg">Hidden Campus Content</h3>
+                                <p class="text-xs text-slate-400 mt-1 mb-4 max-w-[200px]">You have 1 free 5-second peek remaining.</p>
+                                <button onclick="startPeek('${post.id}')" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 py-2.5 rounded-xl shadow-lg transition-all active:scale-95">
+                                    Reveal (5s Peek)
+                                </button>
+                            </div>
+
+                            <div id="paywallOverlay-${post.id}" class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-6 text-center ${showPaywall ? '' : 'hidden'}">
+                                <span class="text-4xl mb-3">🔒</span>
+                                <h3 class="font-bold text-lg text-red-400">Your Free Peek Expired!</h3>
+                                <p class="text-xs text-slate-300 mt-1 mb-5 max-w-[240px]">Want to download or view this content forever?</p>
+                                <button onclick="triggerPayment('${post.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-6 py-3 rounded-xl shadow-lg transition-all w-48 mb-2 active:scale-95">
+                                    Unlock Forever (1 GHS)
+                                </button>
+                                <span class="text-[10px] text-slate-500">Pays securely via Mobile Money</span>
+                            </div>
+                        </div>
+
+                        <div class="p-4">
+                            <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
+                        </div>
+                    `;
+                    feedContainer.appendChild(card);
+                });
+
+            } catch (error) {
+                console.error("Error building feed:", error.message);
+                feedContainer.innerHTML = `<div class="text-center text-sm text-red-400 py-10">Error loading feed: ${error.message}</div>`;
+            }
+        }
+
+        function startPeek(id) {
+            // Instantly mark as viewed in localStorage so refreshing mid-timer won't reset the free peek
+            localStorage.setItem(id, 'viewed');
+            
+            document.getElementById(`blurOverlay-${id}`).classList.add('hidden');
+            
+            setTimeout(() => {
+                expirePeek(id);
+            }, 5000); 
+        }
+
+        function expirePeek(id) {
+            // Only trigger blur if it hasn't been paid for mid-peek
+            if (localStorage.getItem(`unlocked_${id}`) !== 'true') {
+                const imgEl = document.getElementById(`image-${id}`);
+                const paywallEl = document.getElementById(`paywallOverlay-${id}`);
+                
+                if (imgEl) imgEl.classList.add('blur-heavy');
+                if (paywallEl) paywallEl.classList.remove('hidden');
+            }
+        }
+
+        async function uploadPost() {
+            console.log("Upload button clicked!");
+            
+            const fileInput = document.getElementById('imageInput');
+            const captionInput = document.getElementById('captionInput');
+            const uploadBtn = document.getElementById('uploadBtn');
+            
+            if (!fileInput || !captionInput || !uploadBtn) {
+                alert("System Error: HTML elements are missing.");
+                return;
+            }
+
+            const files = fileInput.files;
+            if (!files || files.length === 0) {
+                alert("Please select a photo from your phone gallery first!");
+                return;
+            }
+
+            const file = files[0];
+            const caption = captionInput.value;
+
+            uploadBtn.innerText = "Processing Cloud Sync...";
+            uploadBtn.style.backgroundColor = "#1e40af"; 
+            uploadBtn.disabled = true;
+
+            const fileExtension = file.name ? file.name.split('.').pop() : 'jpg';
+            const fileName = `${Date.now()}.${fileExtension}`;
+
+            try {
+                // 1. Upload file to Supabase Storage using correct client variable
+                const { data: storageData, error: storageError } = await supabaseClient.storage
+                    .from('campus-images')
+                    .upload(fileName, file);
+
+                if (storageError) throw storageError;
+
+                // 2. Fetch public url path
+                const { data: urlData } = supabaseClient.storage
+                    .from('campus-images')
+                    .getPublicUrl(fileName);
+
+                const imageUrl = urlData.publicUrl;
+
+                // 3. Write data to database table row
+                const { error: dbError } = await supabaseClient
+                    .from('posts')
+                    .insert([{ caption: caption, image_url: imageUrl }]);
+
+                if (dbError) throw dbError;
+
+                alert("Awesome! Your snap has been uploaded successfully.");
+                
+                fileInput.value = "";
+                captionInput.value = "";
+                
+                await fetchFeed();
+
+            } catch (error) {
+                console.error("Cloud processing failure:", error.message);
+                alert("Upload error: " + error.message);
+            } finally {
+                uploadBtn.innerText = "Upload to Cloud";
+                uploadBtn.style.backgroundColor = ""; 
+                uploadBtn.disabled = false;
+            }
+        }
+
+        function triggerPayment(postId) {
+            const handler = PaystackPop.setup({
+                key: 'pk_test_your_actual_public_key_here', // <-- Replace with your real Paystack Test Public Key
+                email: 'campususer@example.com',
+                amount: 100, // 100 pesewas = 1 GHS
+                currency: 'GHS',
+                callback: async function(response) {
+                    alert('Payment Successful! Reference: ' + response.reference);
+                    
+                    // Clear temporary viewed lock and set unlock authorization rule
+                    localStorage.removeItem(postId); 
+                    localStorage.setItem(`unlocked_${postId}`, 'true');
+
+                    // Refresh to show clear picture
+                    await fetchFeed();
+                },
+                onClose: function() {
+                    alert('Transaction canceled. Image remains locked.');
+                }
+            });
+
+            handler.openIframe();
+        }
+    </script>
+</body>
+</html>
