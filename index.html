@@ -16,7 +16,7 @@
 <body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col items-center p-4">
 
     <header class="w-full max-w-md text-center my-6">
-        <h1 class="text-3xl font-extrabold text-blue-500 tracking-wide">Campus SnapLock</h1>
+          <h1 onclick="triggerAdminMode()" class="text-3xl font-extrabold text-blue-500 tracking-wide cursor-pointer select-none">Campus SnapLock</h1>
         <p class="text-sm text-slate-400 mt-1">View once for free. Unlock forever for 1 GHS.</p>
     </header>
 
@@ -51,6 +51,14 @@
     </main>
 
     <script>
+        // Secret Admin Password
+        const ADMIN_PASSWORD = "streetnevergiveup";
+        let isAdminMode = false;
+
+        // 1. SUPABASE CREDENTIALS
+        const SUPABASE_URL = "https://ubsktyaaygnzkakwtkel.supabase.co";
+
+        
         // 1. SUPABASE CREDENTIALS (Renamed variable to prevent initialization crash)
         const SUPABASE_URL = "https://ubsktyaaygnzkakwtkel.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_1vd3f0GnqdioHSkpd685lQ_kjwYzcr1";
@@ -118,9 +126,16 @@
                             </div>
                         </div>
 
-                        <div class="p-4">
+                                                <div class="p-4 flex justify-between items-center">
                             <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
+                            
+                            <!-- Hidden Admin Delete Button -->
+                            <button onclick="deletePost('${post.id}', '${post.image_url}')" 
+                                    class="delete-btn bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-red-500/30 transition-all active:scale-95 ${isAdminMode ? '' : 'hidden'}">
+                                Delete
+                            </button>
                         </div>
+
                     `;
                     feedContainer.appendChild(card);
                 });
@@ -242,7 +257,11 @@
             });
 
             handler.openIframe();
-        }
+                }
+
+        // --- PASTE THEM HERE ---
+        function triggerAdminMode() { ... }
+        async function deletePost(postId, imageUrl) { ... }
     </script>
 </body>
 </html>
