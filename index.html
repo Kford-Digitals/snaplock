@@ -7,24 +7,33 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://js.paystack.co/v1/inline.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <style>
-        .blur-heavy {
-            filter: blur(25px);
-        }
-    </style>
 </head>
 <body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col items-center p-4">
+
+    <!-- Weekly Subscription Lock Overlay -->
+    <div id="subModal" class="fixed inset-0 bg-slate-950/98 flex flex-col items-center justify-center p-6 text-center z-50 hidden">
+        <span class="text-5xl mb-4">🔑</span>
+        <h2 class="text-2xl font-extrabold text-blue-500">Campus Pass Required</h2>
+        <p class="text-sm text-slate-300 mt-2 mb-6 max-w-[280px]">
+            New device or expired pass detected. Subscribe for unlimited weekly campus access for just 1 GHS.
+        </p>
+        <button onclick="paySubscription()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg transition-all active:scale-95 w-64">
+            Activate Weekly Pass (1 GHS)
+        </button>
+        <span class="text-[10px] text-slate-500 mt-3">Secure payment via Mobile Money</span>
+    </div>
 
     <header class="w-full max-w-md text-center my-6">
         <h1 onclick="triggerAdminMode()" class="text-3xl font-extrabold text-blue-500 tracking-wide cursor-pointer select-none">
             Campus SnapLock
         </h1>
-        <p class="text-sm text-slate-400 mt-1">View once for free. Unlock forever for 1 GHS.</p>
+        <p class="text-sm text-slate-400 mt-1">Unlimited campus access for 1 GHS per week.</p>
     </header>
 
+    <!-- Post Upload Form -->
     <div class="w-full max-w-md bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl mb-6">
         <h2 class="text-md font-bold mb-3 text-slate-200 flex items-center gap-2">
-            <span>📤</span> Post New Hidden Campus Snap
+            <span>📤</span> Post New Campus Snap
         </h2>
         
         <div class="space-y-3">
@@ -48,6 +57,7 @@
         </div>
     </div>
 
+    <!-- Feed Container -->
     <main id="feedContainer" class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 my-6 px-2">
         <div id="loadingText" class="text-center text-sm text-slate-400 py-10">Loading campus feed...</div>
     </main>
@@ -62,11 +72,72 @@
         const SUPABASE_ANON_KEY = "sb_publishable_1vd3f0GnqdioHSkpd685lQ_kjwYzcr1";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // 2. Fetch all posts when page loads
+        // 2. Scroll Observer to track "Viewed" items
+        const viewedObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const postId = entry.target.dataset.postId;
+                    if (postId && !localStorage.getItem(`viewed_${postId}`)) {
+                        // Mark as viewed on this device
+                        localStorage.setItem(`viewed_${postId}`, 'true');
+                        
+                        // Dynamically update the badge UI
+                        const badge = document.getElementById(`badge-${postId}`);
+                        if (badge) {
+                            badge.innerHTML = "⚪ Viewed";
+                            badge.className = "text-xs bg-slate-700/50 text-slate-500 px-2.5 py-1 rounded-full font-medium transition-all duration-300";
+                        }
+                    }
+                }
+            });
+        }, { threshold: 0.5 }); // Triggers when 50% of the post is on screen
+
+        // 3. Page Initialization
         window.onload = async function() {
+            checkSubscription();
             await fetchFeed();
         };
 
+        // --- WEEKLY SUBSCRIPTION DEVICE BARRIER ---
+        function checkSubscription() {
+            const subscriberId = localStorage.getItem('snaplock_sub_id');
+            const subExpiry = localStorage.getItem('snaplock_sub_expiry');
+            const now = new Date().getTime();
+
+            // If no subscription, or subscription expired -> lock screen
+            if (!subscriberId || !subExpiry || now > parseInt(subExpiry)) {
+                document.getElementById('subModal').classList.remove('hidden');
+            } else {
+                document.getElementById('subModal').classList.add('hidden');
+                console.log("Device has an active weekly pass.");
+            }
+        }
+
+        function paySubscription() {
+            const handler = PaystackPop.setup({
+                key: 'pk_test_your_actual_public_key_here', // <-- Replace with your real Paystack Public Key
+                email: 'subscriber@example.com',
+                amount: 100, // 100 pesewas = 1 GHS
+                currency: 'GHS',
+                callback: function(response) {
+                    alert('Weekly Pass Activated! You have 7 days of unlimited access.');
+                    
+                    // Save 7-day weekly pass expiration structure (7 days * 24 hours * 60 minutes * 60 seconds * 1000 ms)
+                    const expiryTime = new Date().getTime() + (7 * 24 * 60 * 60 * 1000); 
+                    localStorage.setItem('snaplock_sub_id', response.reference);
+                    localStorage.setItem('snaplock_sub_expiry', expiryTime.toString());
+
+                    // Unlock screen
+                    document.getElementById('subModal').classList.add('hidden');
+                },
+                onClose: function() {
+                    alert('Pass activation canceled. Access denied.');
+                }
+            });
+            handler.openIframe();
+        }
+
+        // --- FEED BUILD SYSTEM ---
         async function fetchFeed() {
             const feedContainer = document.getElementById('feedContainer');
             
@@ -86,79 +157,52 @@
                 }
 
                 posts.forEach(post => {
-                    const isViewed = localStorage.getItem(post.id) === 'viewed';
-                    const isUnlocked = localStorage.getItem(`unlocked_${post.id}`) === 'true';
-                    
-                    // Show paywall only if they've peeked AND haven't paid yet
-                    const showPaywall = isViewed && !isUnlocked;
+                    const isViewed = localStorage.getItem(`viewed_${post.id}`) === 'true';
 
                     const card = document.createElement('div');
-                    card.className = "bg-slate-800 rounded-2xl overflow-hidden shadow-xl border border-slate-700";
+                    card.className = "bg-slate-800 rounded-2xl overflow-hidden shadow-xl border border-slate-700 flex flex-col";
+                    card.dataset.postId = post.id; // Store ID for scroll tracking
+
                     card.innerHTML = `
                         <div class="p-4 flex items-center justify-between border-b border-slate-700">
                             <span class="font-semibold text-sm text-slate-200">@Anonymous_Peer</span>
-                            <span class="text-xs bg-slate-700 text-slate-400 px-2.5 py-1 rounded-full font-medium">Campus Feed</span>
+                            
+                            <!-- Dynamic Read/Viewed Badge Indicator -->
+                            <span id="badge-${post.id}" class="text-xs px-2.5 py-1 rounded-full font-medium transition-all duration-300 ${
+                                isViewed 
+                                ? 'bg-slate-700/50 text-slate-500' 
+                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            }">
+                                ${isViewed ? '⚪ Viewed' : '🟢 New'}
+                            </span>
                         </div>
 
                         <div class="relative bg-slate-950 aspect-square flex items-center justify-center overflow-hidden">
+                            <!-- Unblurred feed image directly visible for subscribers -->
                             <img id="image-${post.id}" src="${post.image_url}" 
-                                 class="w-full h-full object-cover transition-all duration-300 ${showPaywall ? 'blur-heavy' : ''}" alt="Campus Post">
-
-                            <div id="blurOverlay-${post.id}" class="absolute inset-0 bg-slate-950/40 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center ${isViewed || isUnlocked ? 'hidden' : ''}">
-                                <span class="text-4xl mb-3">👀</span>
-                                <h3 class="font-bold text-lg">Hidden Campus Content</h3>
-                                <p class="text-xs text-slate-400 mt-1 mb-4 max-w-[200px]">You have 1 free 5-second peek remaining.</p>
-                                <button onclick="startPeek('${post.id}')" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 py-2.5 rounded-xl shadow-lg transition-all active:scale-95">
-                                    Reveal (5s Peek)
-                                </button>
-                            </div>
-
-                            <div id="paywallOverlay-${post.id}" class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-6 text-center ${showPaywall ? '' : 'hidden'}">
-                                <span class="text-4xl mb-3">🔒</span>
-                                <h3 class="font-bold text-lg text-red-400">Your Free Peek Expired!</h3>
-                                <p class="text-xs text-slate-300 mt-1 mb-5 max-w-[240px]">Want to download or view this content forever?</p>
-                                <button onclick="triggerPayment('${post.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-6 py-3 rounded-xl shadow-lg transition-all w-48 mb-2 active:scale-95">
-                                    Unlock Forever (1 GHS)
-                                </button>
-                                <span class="text-[10px] text-slate-500">Pays securely via Mobile Money</span>
-                            </div>
+                                 class="w-full h-full object-cover" alt="Campus Post">
                         </div>
 
-                        <div class="p-4 flex justify-between items-center">
+                        <div class="p-4 flex justify-between items-center mt-auto">
                             <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
                             
                             <!-- Hidden Admin Delete Button -->
                             <button onclick="deletePost('${post.id}', '${post.image_url}')" 
-                                    class="delete-btn bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-red-500/30 transition-all active:scale-95 ${isAdminMode ? '' : 'hidden'}">
+                                    class="delete-btn bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-red-500/30 transition-all active:scale-[0.95] ${isAdminMode ? '' : 'hidden'}">
                                 Delete
                             </button>
                         </div>
                     `;
+                    
                     feedContainer.appendChild(card);
+                    
+                    // Attach scroll-spy observer to the card
+                    viewedObserver.observe(card);
                 });
 
             } catch (error) {
                 console.error("Error building feed:", error.message);
                 feedContainer.innerHTML = `<div class="text-center text-sm text-red-400 py-10">Error loading feed: ${error.message}</div>`;
-            }
-        }
-
-        function startPeek(id) {
-            localStorage.setItem(id, 'viewed');
-            document.getElementById(`blurOverlay-${id}`).classList.add('hidden');
-            
-            setTimeout(() => {
-                expirePeek(id);
-            }, 5000); 
-        }
-
-        function expirePeek(id) {
-            if (localStorage.getItem(`unlocked_${id}`) !== 'true') {
-                const imgEl = document.getElementById(`image-${id}`);
-                const paywallEl = document.getElementById(`paywallOverlay-${id}`);
-                
-                if (imgEl) imgEl.classList.add('blur-heavy');
-                if (paywallEl) paywallEl.classList.remove('hidden');
             }
         }
 
@@ -227,36 +271,13 @@
             }
         }
 
-        function triggerPayment(postId) {
-            const handler = PaystackPop.setup({
-                key: 'pk_test_your_actual_public_key_here', // <-- Replace with your real Paystack Test Public Key
-                email: 'campususer@example.com',
-                amount: 100, // 100 pesewas = 1 GHS
-                currency: 'GHS',
-                callback: async function(response) {
-                    alert('Payment Successful! Reference: ' + response.reference);
-                    
-                    localStorage.removeItem(postId); 
-                    localStorage.setItem(`unlocked_${postId}`, 'true');
-
-                    await fetchFeed();
-                },
-                onClose: function() {
-                    alert('Transaction canceled. Image remains locked.');
-                }
-            });
-
-            handler.openIframe();
-        }
-
-        // --- FULLY IMPLEMENTED ADMIN SYSTEM FUNCTIONS ---
+        // --- MANAGEMENT / ADMIN SYSTEM ---
         function triggerAdminMode() {
             const pass = prompt("Enter secret admin password to toggle management tools:");
             if (pass === ADMIN_PASSWORD) {
                 isAdminMode = !isAdminMode;
                 alert(`Admin Mode is now ${isAdminMode ? "ENABLED" : "DISABLED"}.`);
                 
-                // Dynamically toggle visibility of all delete buttons on current layout
                 const deleteButtons = document.querySelectorAll('.delete-btn');
                 deleteButtons.forEach(btn => {
                     if (isAdminMode) {
@@ -274,20 +295,29 @@
             if (!confirm("Are you sure you want to permanently delete this post and its image?")) return;
 
             try {
-                // 1. Parse out the raw filename from the image URL to delete from bucket storage
-                const urlParts = imageUrl.split('/');
-                const fileName = urlParts[urlParts.length - 1];
+                let fileName = "";
+                try {
+                    const urlObj = new URL(imageUrl);
+                    const pathParts = urlObj.pathname.split('/object/public/campus-images/');
+                    if (pathParts.length > 1) {
+                        fileName = decodeURIComponent(pathParts[1]);
+                    } else {
+                        fileName = imageUrl.split('/').pop();
+                    }
+                } catch (e) {
+                    fileName = imageUrl.split('/').pop();
+                }
 
-                // 2. Remove file from Supabase storage bucket
+                // 1. Remove file from Supabase storage
                 const { error: storageError } = await supabaseClient.storage
                     .from('campus-images')
                     .remove([fileName]);
 
                 if (storageError) {
-                    console.warn("Storage deletion warning (might already be deleted):", storageError.message);
+                    console.warn("Storage deletion warning:", storageError.message);
                 }
 
-                // 3. Delete DB record
+                // 2. Delete DB record
                 const { error: dbError } = await supabaseClient
                     .from('posts')
                     .delete()
