@@ -30,7 +30,7 @@
         <p class="text-sm text-slate-400 mt-1">Unlimited campus access for 1 GHS per week.</p>
     </header>
 
-    <!-- Post Upload Form -->
+    <!-- Post Upload Form (Supports Images and Videos) -->
     <div class="w-full max-w-md bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl mb-6">
         <h2 class="text-md font-bold mb-3 text-slate-200 flex items-center gap-2">
             <span>📤</span> Post New Campus Snap
@@ -38,7 +38,7 @@
         
         <div class="space-y-3">
             <label class="block">
-                <input type="file" id="imageInput" accept="image/*" 
+                <input type="file" id="imageInput" accept="image/*,video/*" 
                        class="block w-full text-xs text-slate-400
                               file:mr-4 file:py-2.5 file:px-4
                               file:rounded-xl file:border-0
@@ -84,7 +84,6 @@
             const subExpiry = localStorage.getItem('snaplock_sub_expiry');
             const now = new Date().getTime();
 
-            // If no subscription, or subscription expired -> lock screen
             if (!subscriberId || !subExpiry || now > parseInt(subExpiry)) {
                 document.getElementById('subModal').classList.remove('hidden');
             } else {
@@ -95,17 +94,15 @@
 
         function paySubscription() {
             const handler = PaystackPop.setup({
-                key: 'pk_test_c6122e53c25e5e1c57b69ccf1672ee8f35bc6b9e', // Your active Paystack Key
+                key: 'pk_test_c6122e53c25e5e1c57b69ccf1672ee8f35bc6b9e', 
                 email: 'subscriber@example.com',
-                amount: 100, // 100 pesewas = 1 GHS
+                amount: 100, 
                 currency: 'GHS',
                 callback: function(response) {
                     alert('Weekly Pass Activated! You have 7 days of unlimited access.');
-                    
                     const expiryTime = new Date().getTime() + (7 * 24 * 60 * 60 * 1000); 
                     localStorage.setItem('snaplock_sub_id', response.reference);
                     localStorage.setItem('snaplock_sub_expiry', expiryTime.toString());
-
                     document.getElementById('subModal').classList.add('hidden');
                 },
                 onClose: function() {
@@ -117,18 +114,19 @@
 
         // --- CLICK TO REVEAL SYSTEM ---
         function revealPost(postId) {
-            // 1. Save viewed status to localStorage
             localStorage.setItem(`viewed_${postId}`, 'true');
 
-            // 2. Hide the overlay barrier
             const overlay = document.getElementById(`overlay-${postId}`);
             if (overlay) overlay.classList.add('hidden');
 
-            // 3. Remove blur/hidden status from image
-            const image = document.getElementById(`image-${postId}`);
-            if (image) image.classList.remove('blur-xl', 'opacity-20');
+            const media = document.getElementById(`media-${postId}`);
+            if (media) {
+                media.classList.remove('blur-xl', 'opacity-20');
+                if (media.tagName === 'VIDEO') {
+                    media.play().catch(err => console.log("Auto-play prevented: ", err));
+                }
+            }
 
-            // 4. Update the header badge
             const badge = document.getElementById(`badge-${postId}`);
             if (badge) {
                 badge.innerHTML = "⚪ Viewed";
@@ -157,48 +155,40 @@
 
                 posts.forEach(post => {
                     const isViewed = localStorage.getItem(`viewed_${post.id}`) === 'true';
+                    const isVideo = post.image_url.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) || post.image_url.includes('/video');
 
                     const card = document.createElement('div');
                     card.className = "bg-slate-800 rounded-2xl overflow-hidden shadow-xl border border-slate-700 flex flex-col relative";
 
+                    const mediaTag = isVideo 
+                        ? `<video id="media-${post.id}" src="${post.image_url}" controls playsinline loop
+                             class="w-full h-auto max-h-[500px] object-contain transition-all duration-500 ${isViewed ? '' : 'blur-xl opacity-20'}"></video>`
+                        : `<img id="media-${post.id}" src="${post.image_url}" 
+                             class="w-full h-auto max-h-[500px] object-contain transition-all duration-500 ${isViewed ? '' : 'blur-xl opacity-20'}" alt="Campus Post">`;
+
                     card.innerHTML = `
                         <div class="p-4 flex items-center justify-between border-b border-slate-700 z-10 bg-slate-800">
                             <span class="font-semibold text-sm text-slate-200">@Anonymous_Peer</span>
-                            
-                            <!-- Dynamic Read/Viewed Badge Indicator -->
                             <span id="badge-${post.id}" class="text-xs px-2.5 py-1 rounded-full font-medium transition-all duration-300 ${
-                                isViewed 
-                                ? 'bg-slate-700/50 text-slate-500' 
-                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                isViewed ? 'bg-slate-700/50 text-slate-500' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                             }">
                                 ${isViewed ? '⚪ Viewed' : '🟢 New'}
                             </span>
                         </div>
 
-                        <!-- Main Media Container -->
                         <div class="relative bg-slate-950 w-full min-h-[300px] flex items-center justify-center overflow-hidden">
-                           
-                           <!-- Click Barrier Overlay for Unviewed Posts -->
                            <div id="overlay-${post.id}" class="absolute inset-0 bg-slate-950/40 backdrop-blur-md flex flex-col items-center justify-center z-20 transition-all ${isViewed ? 'hidden' : ''}">
-                                
-                                <!-- Small Action Box (Only tapping this box triggers the reveal) -->
                                 <button onclick="revealPost('${post.id}')" 
                                         class="flex flex-col items-center justify-center bg-slate-900/90 hover:bg-slate-850 border border-slate-700 p-4 rounded-2xl shadow-2xl active:scale-95 transition-all w-44 text-center cursor-pointer">
-                                    <span class="text-2xl mb-1.5">👁️‍🗨️</span>
-                                    <span class="text-[10px] font-bold text-blue-400 tracking-wider">TAP TO REVEAL</span>
+                                    <span class="text-2xl mb-1.5">${isVideo ? '🎬' : '👁️‍🗨️'}</span>
+                                    <span class="text-[10px] font-bold text-blue-400 tracking-wider">TAP TO REVEAL ${isVideo ? 'VIDEO' : 'SNAP'}</span>
                                 </button>
-                                
                            </div>
-
-                           <!-- Content Image -->
-                           <img id="image-${post.id}" src="${post.image_url}" 
-                             class="w-full h-auto max-h-[500px] object-contain transition-all duration-500 ${isViewed ? '' : 'blur-xl opacity-20'}" alt="Campus Post">
+                           ${mediaTag}
                         </div>
 
                         <div class="p-4 flex justify-between items-center mt-auto bg-slate-800 z-10">
                             <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
-                            
-                            <!-- Hidden Admin Delete Button -->
                             <button onclick="event.stopPropagation(); deletePost('${post.id}', '${post.image_url}')" 
                                     class="delete-btn bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-red-500/30 transition-all active:scale-[0.95] ${isAdminMode ? '' : 'hidden'}">
                                 Delete
@@ -215,29 +205,45 @@
             }
         }
 
+        // --- UPLOAD SYSTEM WITH 2-MINUTE VIDEO VALIDATION ---
         async function uploadPost() {
             const fileInput = document.getElementById('imageInput');
             const captionInput = document.getElementById('captionInput');
             const uploadBtn = document.getElementById('uploadBtn');
             
-            if (!fileInput || !captionInput || !uploadBtn) {
-                alert("System Error: HTML elements are missing.");
-                return;
-            }
+            if (!fileInput || !captionInput || !uploadBtn) return;
 
             const files = fileInput.files;
             if (!files || files.length === 0) {
-                alert("Please select a photo from your phone gallery first!");
+                alert("Please select a photo or video from your gallery first!");
                 return;
             }
 
             const file = files[0];
             const caption = captionInput.value;
 
-            uploadBtn.innerText = "Processing Cloud Sync...";
+            // Trigger loading state UI
+            uploadBtn.innerText = "Checking Media...";
             uploadBtn.style.backgroundColor = "#1e40af"; 
             uploadBtn.disabled = true;
 
+            // --- VIDEO DURATION CHECK BLOCK ---
+            if (file.type.startsWith('video/')) {
+                try {
+                    const videoDuration = await getVideoDuration(file);
+                    if (videoDuration > 120) { // 120 seconds = 2 minutes
+                        alert(`❌ Video is too long! The maximum allowed duration is 2 minutes (120 seconds). Your video is ${Math.round(videoDuration)} seconds.`);
+                        resetUploadButton(uploadBtn);
+                        return;
+                    }
+                } catch (err) {
+                    alert("Could not process video length verification.");
+                    resetUploadButton(uploadBtn);
+                    return;
+                }
+            }
+
+            uploadBtn.innerText = "Processing Cloud Sync...";
             const fileExtension = file.name ? file.name.split('.').pop() : 'jpg';
             const fileName = `${Date.now()}.${fileExtension}`;
 
@@ -261,22 +267,43 @@
                 if (dbError) throw dbError;
 
                 alert("Awesome! Your snap has been uploaded successfully.");
-                
                 fileInput.value = "";
                 captionInput.value = "";
-                
                 await fetchFeed();
 
             } catch (error) {
                 console.error("Cloud processing failure:", error.message);
                 alert("Upload error: " + error.message);
             } finally {
-                uploadBtn.innerText = "Upload to Cloud";
-                uploadBtn.style.backgroundColor = ""; 
-                uploadBtn.disabled = false;
+                resetUploadButton(uploadBtn);
             }
         }
 
+        // Helper function to read video duration programmatically
+        function getVideoDuration(file) {
+            return new Promise((resolve, reject) => {
+                const videoElement = document.createElement('video');
+                videoElement.preload = 'metadata';
+                videoElement.src = URL.createObjectURL(file);
+                
+                videoElement.onloadedmetadata = function() {
+                    URL.revokeObjectURL(videoElement.src);
+                    resolve(videoElement.duration);
+                };
+                
+                videoElement.onerror = function() {
+                    reject("Failed to read video file metadata.");
+                };
+            });
+        }
+
+        function resetUploadButton(btn) {
+            btn.innerText = "Upload to Cloud";
+            btn.style.backgroundColor = ""; 
+            btn.disabled = false;
+        }
+
+        // --- MANAGEMENT / ADMIN SYSTEM ---
         function triggerAdminMode() {
             const pass = prompt("Enter secret admin password to toggle management tools:");
             if (pass === ADMIN_PASSWORD) {
@@ -297,7 +324,7 @@
         }
 
         async function deletePost(postId, imageUrl) {
-            if (!confirm("Are you sure you want to permanently delete this post and its image?")) return;
+            if (!confirm("Are you sure you want to permanently delete this post and its media?")) return;
 
             try {
                 let fileName = "";
