@@ -45,6 +45,7 @@
             Campus SnapLock
         </h1>
         <p class="text-sm text-slate-400 mt-1">Unlimited campus access for 1 GHS per week.</p>
+        
         <!-- Dynamic Download Counter UI element -->
         <div id="creditsBadge" class="inline-block bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-xs mt-3 text-emerald-400 font-semibold hidden">
             Remaining Downloads: <span id="creditsCount">0</span>
@@ -78,8 +79,14 @@
         </div>
     </div>
 
+    <!-- Feed Filter Header -->
+    <div class="w-full max-w-6xl px-2 flex justify-between items-center mb-2">
+        <h3 class="text-sm font-bold text-slate-400 tracking-wider uppercase">⚡ The Weekly Vault</h3>
+        <span class="text-[11px] text-slate-500">Snaps disappear/lock after 7 days</span>
+    </div>
+
     <!-- Feed Container -->
-    <main id="feedContainer" class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 my-6 px-2">
+    <main id="feedContainer" class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 my-2 px-2">
         <div id="loadingText" class="text-center text-sm text-slate-400 py-10">Loading campus feed...</div>
     </main>
 
@@ -100,7 +107,7 @@
             await fetchFeed();
         };
 
-        // --- WEEKLY SUBSCRIPTION DEVICE BARRIER (TO VIEW FEED) ---
+        // --- WEEKLY SUBSCRIPTION DEVICE BARRIER ---
         function checkSubscription() {
             const subscriberId = localStorage.getItem('snaplock_sub_id');
             const subExpiry = localStorage.getItem('snaplock_sub_expiry');
@@ -117,7 +124,7 @@
             const handler = PaystackPop.setup({
                 key: 'pk_test_c6122e53c25e5e1c57b69ccf1672ee8f35bc6b9e', 
                 email: 'subscriber@example.com',
-                amount: 100, // 1 GHS
+                amount: 100, 
                 currency: 'GHS',
                 callback: function(response) {
                     alert('Weekly Pass Activated! You have 7 days of unlimited access.');
@@ -147,10 +154,14 @@
             }
         }
 
-        function handleDownloadClick(imageUrl, postId) {
+        function handleDownloadClick(imageUrl, postId, isExpired) {
+            if (isExpired) {
+                alert("❌ This snap has expired and can no longer be downloaded.");
+                return;
+            }
+
             let credits = parseInt(localStorage.getItem('snaplock_dl_credits') || '0');
 
-            // If user has credits, deduct 1 and proceed with download
             if (credits > 0) {
                 credits -= 1;
                 localStorage.setItem('snaplock_dl_credits', credits.toString());
@@ -159,13 +170,10 @@
                 alert(`Preparing download! Remaining download credits: ${credits}`);
                 downloadMediaFile(imageUrl, postId);
             } else {
-                // Out of credits -> show Paystack modal options
                 const payButton = document.getElementById('payDownloadBtn');
-                
                 payButton.onclick = function() {
                     payForDownloadPass(imageUrl, postId);
                 };
-
                 document.getElementById('downloadModal').classList.remove('hidden');
             }
         }
@@ -178,20 +186,15 @@
             const handler = PaystackPop.setup({
                 key: 'pk_test_c6122e53c25e5e1c57b69ccf1672ee8f35bc6b9e',
                 email: 'downloader@example.com',
-                amount: 100, // 1 GHS
+                amount: 100, 
                 currency: 'GHS',
                 callback: function(response) {
-                    alert('Payment successful! 5 Download credits added to your device.');
-                    
-                    // Add +5 credits to existing balance
+                    alert('Payment successful! 5 Download credits added.');
                     let currentCredits = parseInt(localStorage.getItem('snaplock_dl_credits') || '0');
                     localStorage.setItem('snaplock_dl_credits', (currentCredits + 5).toString());
                     updateCreditsBadge();
-
                     closeDownloadModal();
-                    
-                    // Immediately trigger the download they wanted, which will deduct the first credit
-                    handleDownloadClick(imageUrl, postId);
+                    handleDownloadClick(imageUrl, postId, false);
                 },
                 onClose: function() {
                     alert('Payment canceled.');
@@ -200,7 +203,6 @@
             handler.openIframe();
         }
 
-        // Force browser binary trigger download
         async function downloadMediaFile(url, postId) {
             try {
                 const response = await fetch(url);
@@ -220,12 +222,17 @@
                 URL.revokeObjectURL(blobUrl);
             } catch (error) {
                 console.error("Download failed: ", error);
-                alert("Direct download failed. Please try long-pressing the media to save it manually.");
+                alert("Direct download failed. Please long-press the media to save manually.");
             }
         }
 
         // --- CLICK TO REVEAL SYSTEM ---
-        function revealPost(postId) {
+        function revealPost(postId, isExpired) {
+            if (isExpired) {
+                alert("🔒 This post is older than 7 days and has permanently expired!");
+                return;
+            }
+
             localStorage.setItem(`viewed_${postId}`, 'true');
 
             const overlay = document.getElementById(`overlay-${postId}`);
@@ -246,7 +253,7 @@
             }
         }
 
-        // --- FEED BUILD SYSTEM ---
+        // --- FEED BUILD SYSTEM (WITH 7-DAY EXPIRY FILTER) ---
         async function fetchFeed() {
             const feedContainer = document.getElementById('feedContainer');
             
@@ -265,37 +272,69 @@
                     return;
                 }
 
+                const now = new Date();
+
                 posts.forEach(post => {
+                    // Check if post is older than 7 days (7 * 24 * 60 * 60 * 1000 = 604,800,000 milliseconds)
+                    const postTime = new Date(post.created_at);
+                    const diffTime = Math.abs(now - postTime);
+                    const isExpired = diffTime > (7 * 24 * 60 * 60 * 1000); 
+
                     const isViewed = localStorage.getItem(`viewed_${post.id}`) === 'true';
                     const isVideo = post.image_url.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) || post.image_url.includes('/video');
 
                     const card = document.createElement('div');
-                    card.className = "bg-slate-800 rounded-2xl overflow-hidden shadow-xl border border-slate-700 flex flex-col relative";
+                    card.className = `bg-slate-800 rounded-2xl overflow-hidden shadow-xl border flex flex-col relative transition-all duration-300 ${
+                        isExpired ? 'border-red-900/40 opacity-75' : 'border-slate-700'
+                    }`;
 
-                    const mediaTag = isVideo 
-                        ? `<video id="media-${post.id}" src="${post.image_url}" controls playsinline loop
-                             class="w-full h-auto max-h-[500px] object-contain transition-all duration-500 ${isViewed ? '' : 'blur-xl opacity-20'}"></video>`
-                        : `<img id="media-${post.id}" src="${post.image_url}" 
-                             class="w-full h-auto max-h-[500px] object-contain transition-all duration-500 ${isViewed ? '' : 'blur-xl opacity-20'}" alt="Campus Post">`;
+                    // If expired, completely lock the media from loading
+                    const mediaTag = isExpired
+                        ? `<div class="w-full h-64 bg-slate-950 flex items-center justify-center text-slate-600 font-bold text-xs tracking-wider">🔒 SNAP EXPIRED & LOCKED</div>`
+                        : (isVideo 
+                            ? `<video id="media-${post.id}" src="${post.image_url}" controls playsinline loop
+                                 class="w-full h-auto max-h-[500px] object-contain transition-all duration-500 ${isViewed ? '' : 'blur-xl opacity-20'}"></video>`
+                            : `<img id="media-${post.id}" src="${post.image_url}" 
+                                 class="w-full h-auto max-h-[500px] object-contain transition-all duration-500 ${isViewed ? '' : 'blur-xl opacity-20'}" alt="Campus Post">`);
+
+                    // Setup the badge dynamic classes based on status
+                    let badgeHTML = '';
+                    if (isExpired) {
+                        badgeHTML = `<span class="text-xs bg-red-950/40 text-red-400 border border-red-900/50 px-2.5 py-1 rounded-full font-medium">🔒 Expired</span>`;
+                    } else if (isViewed) {
+                        badgeHTML = `<span id="badge-${post.id}" class="text-xs bg-slate-700/50 text-slate-500 px-2.5 py-1 rounded-full font-medium">⚪ Viewed</span>`;
+                    } else {
+                        badgeHTML = `<span id="badge-${post.id}" class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-medium">🟢 Active</span>`;
+                    }
+
+                    // Click barrier styling changes if post is expired
+                    let overlayHTML = '';
+                    if (!isViewed && !isExpired) {
+                        overlayHTML = `
+                           <div id="overlay-${post.id}" class="absolute inset-0 bg-slate-950/40 backdrop-blur-md flex flex-col items-center justify-center z-20 transition-all">
+                                <button onclick="revealPost('${post.id}', false)" 
+                                        class="flex flex-col items-center justify-center bg-slate-900/90 hover:bg-slate-850 border border-slate-700 p-4 rounded-2xl shadow-2xl active:scale-95 transition-all w-44 text-center cursor-pointer">
+                                    <span class="text-2xl mb-1.5">${isVideo ? '🎬' : '👁️‍eqn'}</span>
+                                    <span class="text-[10px] font-bold text-blue-400 tracking-wider">TAP TO REVEAL ${isVideo ? 'VIDEO' : 'SNAP'}</span>
+                                </button>
+                           </div>`;
+                    } else if (isExpired) {
+                        overlayHTML = `
+                           <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-lg flex flex-col items-center justify-center z-20 text-center p-4">
+                                <span class="text-3xl mb-2">⏰</span>
+                                <span class="text-xs font-black text-red-500 tracking-widest">POST EXPIRED</span>
+                                <span class="text-[9px] text-slate-400 mt-1 max-w-[150px]">This snap was posted over 7 days ago and is permanently locked.</span>
+                           </div>`;
+                    }
 
                     card.innerHTML = `
                         <div class="p-4 flex items-center justify-between border-b border-slate-700 z-10 bg-slate-800">
                             <span class="font-semibold text-sm text-slate-200">@Anonymous_Peer</span>
-                            <span id="badge-${post.id}" class="text-xs px-2.5 py-1 rounded-full font-medium transition-all duration-300 ${
-                                isViewed ? 'bg-slate-700/50 text-slate-500' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            }">
-                                ${isViewed ? '⚪ Viewed' : '🟢 New'}
-                            </span>
+                            ${badgeHTML}
                         </div>
 
                         <div class="relative bg-slate-950 w-full min-h-[300px] flex items-center justify-center overflow-hidden">
-                           <div id="overlay-${post.id}" class="absolute inset-0 bg-slate-950/40 backdrop-blur-md flex flex-col items-center justify-center z-20 transition-all ${isViewed ? 'hidden' : ''}">
-                                <button onclick="revealPost('${post.id}')" 
-                                        class="flex flex-col items-center justify-center bg-slate-900/90 hover:bg-slate-850 border border-slate-700 p-4 rounded-2xl shadow-2xl active:scale-95 transition-all w-44 text-center cursor-pointer">
-                                    <span class="text-2xl mb-1.5">${isVideo ? '🎬' : '👁️‍🗨️'}</span>
-                                    <span class="text-[10px] font-bold text-blue-400 tracking-wider">TAP TO REVEAL ${isVideo ? 'VIDEO' : 'SNAP'}</span>
-                                </button>
-                           </div>
+                           ${overlayHTML}
                            ${mediaTag}
                         </div>
 
@@ -303,8 +342,12 @@
                             <div class="flex justify-between items-center w-full">
                                 <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
                                 
-                                <button onclick="handleDownloadClick('${post.image_url}', '${post.id}')"
-                                        class="bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white text-xs font-semibold px-3.5 py-1.5 rounded-xl border border-emerald-500/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer">
+                                <button onclick="handleDownloadClick('${post.image_url}', '${post.id}', ${isExpired})"
+                                        class="text-xs font-semibold px-3.5 py-1.5 rounded-xl border transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer ${
+                                            isExpired 
+                                            ? 'bg-slate-800 border-slate-700 text-slate-600 cursor-not-allowed' 
+                                            : 'bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white border-emerald-500/30'
+                                        }">
                                     <span>📥</span> Download
                                 </button>
                             </div>
@@ -351,7 +394,7 @@
                 try {
                     const videoDuration = await getVideoDuration(file);
                     if (videoDuration > 120) {
-                        alert(`❌ Video is too long! The maximum allowed duration is 2 minutes (120 seconds). Your video is ${Math.round(videoDuration)} seconds.`);
+                        alert(`❌ Video is too long! Maximum allowed duration is 2 minutes (120 seconds). Your video is ${Math.round(videoDuration)} seconds.`);
                         resetUploadButton(uploadBtn);
                         return;
                     }
