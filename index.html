@@ -69,6 +69,18 @@
                               hover:file:bg-blue-700 file:cursor-pointer cursor-pointer"/>
             </label>
 
+            <!-- Brand New: Category Selection Dropdown -->
+            <div>
+                <label for="categoryInput" class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Select Tag</label>
+                <select id="categoryInput" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs text-slate-300 focus:outline-none focus:border-blue-500 transition-all cursor-pointer">
+                    <option value="General">📣 #General</option>
+                    <option value="Gossip">☕ #CampusGossip</option>
+                    <option value="Leaks">📝 #ExamLeaks</option>
+                    <option value="Crush">❤️ #CampusCrush</option>
+                    <option value="Events">party #Events</option>
+                </select>
+            </div>
+
             <input type="text" id="captionInput" placeholder="Write a juicy description or caption..." 
                    class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all">
 
@@ -79,10 +91,34 @@
         </div>
     </div>
 
-    <!-- Feed Filter Header -->
-    <div class="w-full max-w-6xl px-2 flex justify-between items-center mb-2">
-        <h3 class="text-sm font-bold text-slate-400 tracking-wider uppercase">⚡ The Weekly Vault</h3>
-        <span class="text-[11px] text-slate-500">Snaps disappear/lock after 7 days</span>
+    <!-- Brand New: Feed Filter Navigation Bar -->
+    <div class="w-full max-w-6xl px-2 mb-4">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="text-sm font-bold text-slate-400 tracking-wider uppercase">⚡ The Weekly Vault</h3>
+            <span class="text-[11px] text-slate-500">Snaps disappear after 7 days</span>
+        </div>
+        
+        <!-- Filter Tabs (Horizontal Scroll on Mobile) -->
+        <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+            <button onclick="filterFeed('All')" id="filter-All" class="filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-blue-600 border-blue-500 text-white">
+                🌐 All Snaps
+            </button>
+            <button onclick="filterFeed('General')" id="filter-General" class="filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600">
+                📣 General
+            </button>
+            <button onclick="filterFeed('Gossip')" id="filter-Gossip" class="filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600">
+                ☕ CampusGossip
+            </button>
+            <button onclick="filterFeed('Leaks')" id="filter-Leaks" class="filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600">
+                📝 ExamLeaks
+            </button>
+            <button onclick="filterFeed('Crush')" id="filter-Crush" class="filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600">
+                ❤️ CampusCrush
+            </button>
+            <button onclick="filterFeed('Events')" id="filter-Events" class="filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600">
+                🎉 Events
+            </button>
+        </div>
     </div>
 
     <!-- Feed Container -->
@@ -94,6 +130,9 @@
         // Secret Admin Password
         const ADMIN_PASSWORD = "streetnevergiveup";
         let isAdminMode = false;
+
+        // Current Active Filter Tab
+        let activeCategoryFilter = "All";
 
         // 1. SUPABASE CREDENTIALS
         const SUPABASE_URL = "https://ubsktyaaygnzkakwtkel.supabase.co";
@@ -253,22 +292,45 @@
             }
         }
 
-        // --- FEED BUILD SYSTEM (WITH 7-DAY EXPIRY FILTER) ---
+        // --- DYNAMIC FILTER SYSTEM ---
+        async function filterFeed(category) {
+            activeCategoryFilter = category;
+            
+            // Highlight active button UI
+            const tabs = document.querySelectorAll('.filter-tab');
+            tabs.forEach(tab => {
+                if (tab.id === `filter-${category}`) {
+                    tab.className = "filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-blue-600 border-blue-500 text-white";
+                } else {
+                    tab.className = "filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600";
+                }
+            });
+
+            // Reload filtered feed
+            await fetchFeed();
+        }
+
+        // --- FEED BUILD SYSTEM (WITH 7-DAY EXPIRY FILTER & CATEGORIES) ---
         async function fetchFeed() {
             const feedContainer = document.getElementById('feedContainer');
+            feedContainer.innerHTML = `<div class="text-center text-sm text-slate-400 py-10 col-span-full">Filtering the locker feed...</div>`;
             
             try {
-                const { data: posts, error } = await supabaseClient
-                    .from('posts')
-                    .select('*')
-                    .order('created_at', { ascending: false });
+                let query = supabaseClient.from('posts').select('*');
+
+                // Filter by category if one is selected (and not 'All')
+                if (activeCategoryFilter !== "All") {
+                    query = query.eq('category', activeCategoryFilter);
+                }
+
+                const { data: posts, error } = await query.order('created_at', { ascending: false });
 
                 if (error) throw error;
 
                 feedContainer.innerHTML = "";
 
                 if (!posts || posts.length === 0) {
-                    feedContainer.innerHTML = `<div class="text-center text-sm text-slate-500 py-10">No snaps uploaded yet. Be the first!</div>`;
+                    feedContainer.innerHTML = `<div class="text-center text-sm text-slate-500 py-10 col-span-full">No snaps posted in this category yet!</div>`;
                     return;
                 }
 
@@ -282,6 +344,9 @@
 
                     const isViewed = localStorage.getItem(`viewed_${post.id}`) === 'true';
                     const isVideo = post.image_url.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) || post.image_url.includes('/video');
+
+                    // Set visual tag labels
+                    const categoryLabel = post.category ? `#${post.category}` : '#General';
 
                     const card = document.createElement('div');
                     card.className = `bg-slate-800 rounded-2xl overflow-hidden shadow-xl border flex flex-col relative transition-all duration-300 ${
@@ -314,7 +379,7 @@
                            <div id="overlay-${post.id}" class="absolute inset-0 bg-slate-950/40 backdrop-blur-md flex flex-col items-center justify-center z-20 transition-all">
                                 <button onclick="revealPost('${post.id}', false)" 
                                         class="flex flex-col items-center justify-center bg-slate-900/90 hover:bg-slate-850 border border-slate-700 p-4 rounded-2xl shadow-2xl active:scale-95 transition-all w-44 text-center cursor-pointer">
-                                    <span class="text-2xl mb-1.5">${isVideo ? '🎬' : '👁️‍eqn'}</span>
+                                    <span class="text-2xl mb-1.5">${isVideo ? '🎬' : '👁️'}</span>
                                     <span class="text-[10px] font-bold text-blue-400 tracking-wider">TAP TO REVEAL ${isVideo ? 'VIDEO' : 'SNAP'}</span>
                                 </button>
                            </div>`;
@@ -329,7 +394,10 @@
 
                     card.innerHTML = `
                         <div class="p-4 flex items-center justify-between border-b border-slate-700 z-10 bg-slate-800">
-                            <span class="font-semibold text-sm text-slate-200">@Anonymous_Peer</span>
+                            <div class="flex items-center gap-2">
+                                <span class="font-semibold text-sm text-slate-200">@Anonymous_Peer</span>
+                                <span class="text-[10px] font-bold text-blue-400 uppercase tracking-wider bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-md">${categoryLabel}</span>
+                            </div>
                             ${badgeHTML}
                         </div>
 
@@ -365,17 +433,18 @@
 
             } catch (error) {
                 console.error("Error building feed:", error.message);
-                feedContainer.innerHTML = `<div class="text-center text-sm text-red-400 py-10">Error loading feed: ${error.message}</div>`;
+                feedContainer.innerHTML = `<div class="text-center text-sm text-red-400 py-10 col-span-full">Error loading feed: ${error.message}</div>`;
             }
         }
 
-        // --- UPLOAD SYSTEM WITH 2-MINUTE VIDEO VALIDATION ---
+        // --- UPLOAD SYSTEM WITH CATEGORY AND 2-MINUTE VIDEO VALIDATION ---
         async function uploadPost() {
             const fileInput = document.getElementById('imageInput');
+            const categoryInput = document.getElementById('categoryInput');
             const captionInput = document.getElementById('captionInput');
             const uploadBtn = document.getElementById('uploadBtn');
             
-            if (!fileInput || !captionInput || !uploadBtn) return;
+            if (!fileInput || !categoryInput || !captionInput || !uploadBtn) return;
 
             const files = fileInput.files;
             if (!files || files.length === 0) {
@@ -384,6 +453,7 @@
             }
 
             const file = files[0];
+            const category = categoryInput.value;
             const caption = captionInput.value;
 
             uploadBtn.innerText = "Checking Media...";
@@ -424,14 +494,15 @@
 
                 const { error: dbError } = await supabaseClient
                     .from('posts')
-                    .insert([{ caption: caption, image_url: imageUrl }]);
+                    .insert([{ caption: caption, image_url: imageUrl, category: category }]);
 
                 if (dbError) throw dbError;
 
                 alert("Awesome! Your snap has been uploaded successfully.");
                 fileInput.value = "";
                 captionInput.value = "";
-                await fetchFeed();
+                // Reset to "All" category filter to let user see their newly uploaded post
+                await filterFeed('All');
 
             } catch (error) {
                 console.error("Cloud processing failure:", error.message);
