@@ -72,27 +72,7 @@
         const SUPABASE_ANON_KEY = "sb_publishable_1vd3f0GnqdioHSkpd685lQ_kjwYzcr1";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // 2. Scroll Observer to track "Viewed" items
-        const viewedObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const postId = entry.target.dataset.postId;
-                    if (postId && !localStorage.getItem(`viewed_${postId}`)) {
-                        // Mark as viewed on this device
-                        localStorage.setItem(`viewed_${postId}`, 'true');
-                        
-                        // Dynamically update the badge UI
-                        const badge = document.getElementById(`badge-${postId}`);
-                        if (badge) {
-                            badge.innerHTML = "⚪ Viewed";
-                            badge.className = "text-xs bg-slate-700/50 text-slate-500 px-2.5 py-1 rounded-full font-medium transition-all duration-300";
-                        }
-                    }
-                }
-            });
-        }, { threshold: 0.5 }); // Triggers when 50% of the post is on screen
-
-        // 3. Page Initialization
+        // 2. Page Initialization
         window.onload = async function() {
             checkSubscription();
             await fetchFeed();
@@ -122,12 +102,10 @@
                 callback: function(response) {
                     alert('Weekly Pass Activated! You have 7 days of unlimited access.');
                     
-                    // Save 7-day weekly pass expiration structure (7 days * 24 hours * 60 minutes * 60 seconds * 1000 ms)
                     const expiryTime = new Date().getTime() + (7 * 24 * 60 * 60 * 1000); 
                     localStorage.setItem('snaplock_sub_id', response.reference);
                     localStorage.setItem('snaplock_sub_expiry', expiryTime.toString());
 
-                    // Unlock screen
                     document.getElementById('subModal').classList.add('hidden');
                 },
                 onClose: function() {
@@ -135,6 +113,27 @@
                 }
             });
             handler.openIframe();
+        }
+
+        // --- CLICK TO REVEAL SYSTEM ---
+        function revealPost(postId) {
+            // 1. Save viewed status to localStorage
+            localStorage.setItem(`viewed_${postId}`, 'true');
+
+            // 2. Hide the overlay barrier
+            const overlay = document.getElementById(`overlay-${postId}`);
+            if (overlay) overlay.classList.add('hidden');
+
+            // 3. Remove blur/hidden status from image
+            const image = document.getElementById(`image-${postId}`);
+            if (image) image.classList.remove('blur-xl', 'opacity-20');
+
+            // 4. Update the header badge
+            const badge = document.getElementById(`badge-${postId}`);
+            if (badge) {
+                badge.innerHTML = "⚪ Viewed";
+                badge.className = "text-xs bg-slate-700/50 text-slate-500 px-2.5 py-1 rounded-full font-medium transition-all duration-300";
+            }
         }
 
         // --- FEED BUILD SYSTEM ---
@@ -160,11 +159,10 @@
                     const isViewed = localStorage.getItem(`viewed_${post.id}`) === 'true';
 
                     const card = document.createElement('div');
-                    card.className = "bg-slate-800 rounded-2xl overflow-hidden shadow-xl border border-slate-700 flex flex-col";
-                    card.dataset.postId = post.id; // Store ID for scroll tracking
+                    card.className = "bg-slate-800 rounded-2xl overflow-hidden shadow-xl border border-slate-700 flex flex-col relative";
 
                     card.innerHTML = `
-                        <div class="p-4 flex items-center justify-between border-b border-slate-700">
+                        <div class="p-4 flex items-center justify-between border-b border-slate-700 z-10 bg-slate-800">
                             <span class="font-semibold text-sm text-slate-200">@Anonymous_Peer</span>
                             
                             <!-- Dynamic Read/Viewed Badge Indicator -->
@@ -177,17 +175,25 @@
                             </span>
                         </div>
 
-                        <!-- Full view responsive container -->
-                        <div class="relative bg-slate-950 w-full flex items-center justify-center overflow-hidden">
+                        <!-- Main Media Container -->
+                        <div class="relative bg-slate-950 w-full min-h-[300px] flex items-center justify-center overflow-hidden cursor-pointer" onclick="revealPost('${post.id}')">
+                           
+                           <!-- Click Barrier Overlay for Unviewed Posts -->
+                           <div id="overlay-${post.id}" class="absolute inset-0 bg-slate-950/40 backdrop-blur-md flex flex-col items-center justify-center z-20 transition-all ${isViewed ? 'hidden' : ''}">
+                                <span class="text-3xl mb-2">👁️‍🗨️</span>
+                                <span class="text-xs font-bold text-blue-400 tracking-wider bg-slate-900/80 px-4 py-2 rounded-xl border border-slate-700 shadow-md">TAP TO REVEAL SNAP</span>
+                           </div>
+
+                           <!-- Content Image -->
                            <img id="image-${post.id}" src="${post.image_url}" 
-                             class="w-full h-auto max-h-[500px] object-contain" alt="Campus Post">
+                             class="w-full h-auto max-h-[500px] object-contain transition-all duration-500 ${isViewed ? '' : 'blur-xl opacity-20'}" alt="Campus Post">
                         </div>
 
-                        <div class="p-4 flex justify-between items-center mt-auto">
+                        <div class="p-4 flex justify-between items-center mt-auto bg-slate-800 z-10">
                             <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
                             
                             <!-- Hidden Admin Delete Button -->
-                            <button onclick="deletePost('${post.id}', '${post.image_url}')" 
+                            <button onclick="event.stopPropagation(); deletePost('${post.id}', '${post.image_url}')" 
                                     class="delete-btn bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-red-500/30 transition-all active:scale-[0.95] ${isAdminMode ? '' : 'hidden'}">
                                 Delete
                             </button>
@@ -195,9 +201,6 @@
                     `;
                     
                     feedContainer.appendChild(card);
-                    
-                    // Attach scroll-spy observer to the card
-                    viewedObserver.observe(card);
                 });
 
             } catch (error) {
@@ -233,21 +236,18 @@
             const fileName = `${Date.now()}.${fileExtension}`;
 
             try {
-                // Upload file to Supabase Storage
                 const { data: storageData, error: storageError } = await supabaseClient.storage
                     .from('campus-images')
                     .upload(fileName, file);
 
                 if (storageError) throw storageError;
 
-                // Fetch public URL
                 const { data: urlData } = supabaseClient.storage
                     .from('campus-images')
                     .getPublicUrl(fileName);
 
                 const imageUrl = urlData.publicUrl;
 
-                // Write data to database table row
                 const { error: dbError } = await supabaseClient
                     .from('posts')
                     .insert([{ caption: caption, image_url: imageUrl }]);
@@ -271,7 +271,6 @@
             }
         }
 
-        // --- MANAGEMENT / ADMIN SYSTEM ---
         function triggerAdminMode() {
             const pass = prompt("Enter secret admin password to toggle management tools:");
             if (pass === ADMIN_PASSWORD) {
@@ -308,7 +307,6 @@
                     fileName = imageUrl.split('/').pop();
                 }
 
-                // 1. Remove file from Supabase storage
                 const { error: storageError } = await supabaseClient.storage
                     .from('campus-images')
                     .remove([fileName]);
@@ -317,7 +315,6 @@
                     console.warn("Storage deletion warning:", storageError.message);
                 }
 
-                // 2. Delete DB record
                 const { error: dbError } = await supabaseClient
                     .from('posts')
                     .delete()
