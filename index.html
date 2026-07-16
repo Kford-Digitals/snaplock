@@ -10,7 +10,7 @@
 </head>
 <body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col items-center p-4">
 
-    <!-- Weekly Subscription Lock Overlay -->
+    <!-- Weekly Subscription Lock Overlay (For Viewing) -->
     <div id="subModal" class="fixed inset-0 bg-slate-950/98 flex flex-col items-center justify-center p-6 text-center z-50 hidden">
         <span class="text-5xl mb-4">🔑</span>
         <h2 class="text-2xl font-extrabold text-blue-500">Campus Pass Required</h2>
@@ -23,6 +23,23 @@
         <span class="text-[10px] text-slate-500 mt-3">Secure payment via Mobile Money</span>
     </div>
 
+    <!-- Download Pass Activation Modal (For Downloading) -->
+    <div id="downloadModal" class="fixed inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center z-50 hidden">
+        <span class="text-5xl mb-4">📥</span>
+        <h2 class="text-2xl font-extrabold text-emerald-500">Download Pass Required</h2>
+        <p class="text-sm text-slate-300 mt-2 mb-6 max-w-[280px]">
+            You need a Download Pass to save media to your device. Unlock unlimited downloads for 7 days for just 1 GHS.
+        </p>
+        <div class="flex flex-col gap-2.5 w-64">
+            <button id="payDownloadBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all active:scale-95">
+                Get Download Pass (1 GHS)
+            </button>
+            <button onclick="closeDownloadModal()" class="text-xs text-slate-400 hover:text-white py-2">
+                Cancel
+            </button>
+        </div>
+    </div>
+
     <header class="w-full max-w-md text-center my-6">
         <h1 onclick="triggerAdminMode()" class="text-3xl font-extrabold text-blue-500 tracking-wide cursor-pointer select-none">
             Campus SnapLock
@@ -30,7 +47,7 @@
         <p class="text-sm text-slate-400 mt-1">Unlimited campus access for 1 GHS per week.</p>
     </header>
 
-    <!-- Post Upload Form (Supports Images and Videos) -->
+    <!-- Post Upload Form -->
     <div class="w-full max-w-md bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl mb-6">
         <h2 class="text-md font-bold mb-3 text-slate-200 flex items-center gap-2">
             <span>📤</span> Post New Campus Snap
@@ -78,7 +95,7 @@
             await fetchFeed();
         };
 
-        // --- WEEKLY SUBSCRIPTION DEVICE BARRIER ---
+        // --- WEEKLY SUBSCRIPTION DEVICE BARRIER (TO VIEW FEED) ---
         function checkSubscription() {
             const subscriberId = localStorage.getItem('snaplock_sub_id');
             const subExpiry = localStorage.getItem('snaplock_sub_expiry');
@@ -88,7 +105,6 @@
                 document.getElementById('subModal').classList.remove('hidden');
             } else {
                 document.getElementById('subModal').classList.add('hidden');
-                console.log("Device has an active weekly pass.");
             }
         }
 
@@ -96,7 +112,7 @@
             const handler = PaystackPop.setup({
                 key: 'pk_test_c6122e53c25e5e1c57b69ccf1672ee8f35bc6b9e', 
                 email: 'subscriber@example.com',
-                amount: 100, 
+                amount: 100, // 1 GHS
                 currency: 'GHS',
                 callback: function(response) {
                     alert('Weekly Pass Activated! You have 7 days of unlimited access.');
@@ -110,6 +126,81 @@
                 }
             });
             handler.openIframe();
+        }
+
+        // --- DOWNLOAD SYSTEM & COMPLIANCE ---
+        function handleDownloadClick(imageUrl, postId) {
+            const dlExpiry = localStorage.getItem('snaplock_dl_expiry');
+            const now = new Date().getTime();
+
+            // Check if user has an active Download Pass
+            if (dlExpiry && now <= parseInt(dlExpiry)) {
+                // Already paid! Trigger the download immediately
+                downloadMediaFile(imageUrl, postId);
+            } else {
+                // Download Pass expired or missing -> Show download purchase screen
+                const payButton = document.getElementById('payDownloadBtn');
+                
+                // Set click action for the specific payment trigger
+                payButton.onclick = function() {
+                    payForDownloadPass(imageUrl, postId);
+                };
+
+                document.getElementById('downloadModal').classList.remove('hidden');
+            }
+        }
+
+        function closeDownloadModal() {
+            document.getElementById('downloadModal').classList.add('hidden');
+        }
+
+        function payForDownloadPass(imageUrl, postId) {
+            const handler = PaystackPop.setup({
+                key: 'pk_test_c6122e53c25e5e1c57b69ccf1672ee8f35bc6b9e',
+                email: 'downloader@example.com',
+                amount: 100, // 1 GHS
+                currency: 'GHS',
+                callback: function(response) {
+                    alert('Download Pass Activated! You have 7 days of unlimited media downloads.');
+                    
+                    const expiryTime = new Date().getTime() + (7 * 24 * 60 * 60 * 1000);
+                    localStorage.setItem('snaplock_dl_id', response.reference);
+                    localStorage.setItem('snaplock_dl_expiry', expiryTime.toString());
+
+                    // Close modal and run download automatically
+                    closeDownloadModal();
+                    downloadMediaFile(imageUrl, postId);
+                },
+                onClose: function() {
+                    alert('Download activation canceled.');
+                }
+            });
+            handler.openIframe();
+        }
+
+        // Helper to force-download file directly inside mobile web browsers
+        async function downloadMediaFile(url, postId) {
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                
+                // Set file name based on content type
+                const fileExtension = blob.type.includes('video') ? 'mp4' : 'jpg';
+                link.download = `snaplock_${postId}_${Date.now()}.${fileExtension}`;
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                URL.revokeObjectURL(blobUrl);
+            } catch (error) {
+                console.error("Download failed: ", error);
+                alert("Download failed. Please try long-pressing the media to save it manually.");
+            }
         }
 
         // --- CLICK TO REVEAL SYSTEM ---
@@ -187,8 +278,18 @@
                            ${mediaTag}
                         </div>
 
-                        <div class="p-4 flex justify-between items-center mt-auto bg-slate-800 z-10">
-                            <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
+                        <div class="p-4 flex flex-col gap-3 mt-auto bg-slate-800 z-10">
+                            <div class="flex justify-between items-center w-full">
+                                <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
+                                
+                                <!-- New Pay-to-Download Action Button -->
+                                <button onclick="handleDownloadClick('${post.image_url}', '${post.id}')"
+                                        class="bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white text-xs font-semibold px-3.5 py-1.5 rounded-xl border border-emerald-500/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer">
+                                    <span>📥</span> Download
+                                </button>
+                            </div>
+                            
+                            <!-- Hidden Admin Delete Button -->
                             <button onclick="event.stopPropagation(); deletePost('${post.id}', '${post.image_url}')" 
                                     class="delete-btn bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-red-500/30 transition-all active:scale-[0.95] ${isAdminMode ? '' : 'hidden'}">
                                 Delete
@@ -222,16 +323,14 @@
             const file = files[0];
             const caption = captionInput.value;
 
-            // Trigger loading state UI
             uploadBtn.innerText = "Checking Media...";
             uploadBtn.style.backgroundColor = "#1e40af"; 
             uploadBtn.disabled = true;
 
-            // --- VIDEO DURATION CHECK BLOCK ---
             if (file.type.startsWith('video/')) {
                 try {
                     const videoDuration = await getVideoDuration(file);
-                    if (videoDuration > 120) { // 120 seconds = 2 minutes
+                    if (videoDuration > 120) {
                         alert(`❌ Video is too long! The maximum allowed duration is 2 minutes (120 seconds). Your video is ${Math.round(videoDuration)} seconds.`);
                         resetUploadButton(uploadBtn);
                         return;
@@ -279,7 +378,6 @@
             }
         }
 
-        // Helper function to read video duration programmatically
         function getVideoDuration(file) {
             return new Promise((resolve, reject) => {
                 const videoElement = document.createElement('video');
