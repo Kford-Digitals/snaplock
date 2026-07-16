@@ -10,7 +10,7 @@
 </head>
 <body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col items-center p-4">
 
-    <!-- Weekly Subscription Lock Overlay (For Viewing) -->
+    <!-- Weekly Subscription Lock Overlay (To View Feed) -->
     <div id="subModal" class="fixed inset-0 bg-slate-950/98 flex flex-col items-center justify-center p-6 text-center z-50 hidden">
         <span class="text-5xl mb-4">🔑</span>
         <h2 class="text-2xl font-extrabold text-blue-500">Campus Pass Required</h2>
@@ -23,16 +23,16 @@
         <span class="text-[10px] text-slate-500 mt-3">Secure payment via Mobile Money</span>
     </div>
 
-    <!-- Download Pass Activation Modal (For Downloading) -->
+    <!-- Download Pass Activation Modal (Credit Based) -->
     <div id="downloadModal" class="fixed inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center z-50 hidden">
         <span class="text-5xl mb-4">📥</span>
-        <h2 class="text-2xl font-extrabold text-emerald-500">Download Pass Required</h2>
+        <h2 class="text-2xl font-extrabold text-emerald-500">Out of Downloads</h2>
         <p class="text-sm text-slate-300 mt-2 mb-6 max-w-[280px]">
-            You need a Download Pass to save media to your device. Unlock unlimited downloads for 7 days for just 1 GHS.
+            Get a 5-Download Pack to save photos and videos directly to your gallery for just 1 GHS.
         </p>
         <div class="flex flex-col gap-2.5 w-64">
             <button id="payDownloadBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all active:scale-95">
-                Get Download Pass (1 GHS)
+                Buy 5 Downloads (1 GHS)
             </button>
             <button onclick="closeDownloadModal()" class="text-xs text-slate-400 hover:text-white py-2">
                 Cancel
@@ -45,6 +45,10 @@
             Campus SnapLock
         </h1>
         <p class="text-sm text-slate-400 mt-1">Unlimited campus access for 1 GHS per week.</p>
+        <!-- Dynamic Download Counter UI element -->
+        <div id="creditsBadge" class="inline-block bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-xs mt-3 text-emerald-400 font-semibold hidden">
+            Remaining Downloads: <span id="creditsCount">0</span>
+        </div>
     </header>
 
     <!-- Post Upload Form -->
@@ -92,6 +96,7 @@
         // 2. Page Initialization
         window.onload = async function() {
             checkSubscription();
+            updateCreditsBadge();
             await fetchFeed();
         };
 
@@ -128,20 +133,35 @@
             handler.openIframe();
         }
 
-        // --- DOWNLOAD SYSTEM & COMPLIANCE ---
-        function handleDownloadClick(imageUrl, postId) {
-            const dlExpiry = localStorage.getItem('snaplock_dl_expiry');
-            const now = new Date().getTime();
+        // --- CREDIT-BASED DOWNLOAD SYSTEM ---
+        function updateCreditsBadge() {
+            const credits = parseInt(localStorage.getItem('snaplock_dl_credits') || '0');
+            const badge = document.getElementById('creditsBadge');
+            const countSpan = document.getElementById('creditsCount');
 
-            // Check if user has an active Download Pass
-            if (dlExpiry && now <= parseInt(dlExpiry)) {
-                // Already paid! Trigger the download immediately
+            if (credits > 0) {
+                badge.classList.remove('hidden');
+                countSpan.innerText = credits;
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function handleDownloadClick(imageUrl, postId) {
+            let credits = parseInt(localStorage.getItem('snaplock_dl_credits') || '0');
+
+            // If user has credits, deduct 1 and proceed with download
+            if (credits > 0) {
+                credits -= 1;
+                localStorage.setItem('snaplock_dl_credits', credits.toString());
+                updateCreditsBadge();
+                
+                alert(`Preparing download! Remaining download credits: ${credits}`);
                 downloadMediaFile(imageUrl, postId);
             } else {
-                // Download Pass expired or missing -> Show download purchase screen
+                // Out of credits -> show Paystack modal options
                 const payButton = document.getElementById('payDownloadBtn');
                 
-                // Set click action for the specific payment trigger
                 payButton.onclick = function() {
                     payForDownloadPass(imageUrl, postId);
                 };
@@ -161,24 +181,26 @@
                 amount: 100, // 1 GHS
                 currency: 'GHS',
                 callback: function(response) {
-                    alert('Download Pass Activated! You have 7 days of unlimited media downloads.');
+                    alert('Payment successful! 5 Download credits added to your device.');
                     
-                    const expiryTime = new Date().getTime() + (7 * 24 * 60 * 60 * 1000);
-                    localStorage.setItem('snaplock_dl_id', response.reference);
-                    localStorage.setItem('snaplock_dl_expiry', expiryTime.toString());
+                    // Add +5 credits to existing balance
+                    let currentCredits = parseInt(localStorage.getItem('snaplock_dl_credits') || '0');
+                    localStorage.setItem('snaplock_dl_credits', (currentCredits + 5).toString());
+                    updateCreditsBadge();
 
-                    // Close modal and run download automatically
                     closeDownloadModal();
-                    downloadMediaFile(imageUrl, postId);
+                    
+                    // Immediately trigger the download they wanted, which will deduct the first credit
+                    handleDownloadClick(imageUrl, postId);
                 },
                 onClose: function() {
-                    alert('Download activation canceled.');
+                    alert('Payment canceled.');
                 }
             });
             handler.openIframe();
         }
 
-        // Helper to force-download file directly inside mobile web browsers
+        // Force browser binary trigger download
         async function downloadMediaFile(url, postId) {
             try {
                 const response = await fetch(url);
@@ -188,7 +210,6 @@
                 const link = document.createElement('a');
                 link.href = blobUrl;
                 
-                // Set file name based on content type
                 const fileExtension = blob.type.includes('video') ? 'mp4' : 'jpg';
                 link.download = `snaplock_${postId}_${Date.now()}.${fileExtension}`;
                 
@@ -199,7 +220,7 @@
                 URL.revokeObjectURL(blobUrl);
             } catch (error) {
                 console.error("Download failed: ", error);
-                alert("Download failed. Please try long-pressing the media to save it manually.");
+                alert("Direct download failed. Please try long-pressing the media to save it manually.");
             }
         }
 
@@ -282,7 +303,6 @@
                             <div class="flex justify-between items-center w-full">
                                 <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
                                 
-                                <!-- New Pay-to-Download Action Button -->
                                 <button onclick="handleDownloadClick('${post.image_url}', '${post.id}')"
                                         class="bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white text-xs font-semibold px-3.5 py-1.5 rounded-xl border border-emerald-500/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer">
                                     <span>📥</span> Download
