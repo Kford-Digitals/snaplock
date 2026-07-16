@@ -8,7 +8,7 @@
     <script src="https://js.paystack.co/v1/inline.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
-<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col items-center p-4">
+<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col items-center p-4 relative overflow-x-hidden">
 
     <!-- Weekly Subscription Lock Overlay (To View Feed) -->
     <div id="subModal" class="fixed inset-0 bg-slate-950/98 flex flex-col items-center justify-center p-6 text-center z-50 hidden">
@@ -40,15 +40,32 @@
         </div>
     </div>
 
-    <header class="w-full max-w-md text-center my-6">
+    <!-- Leaderboard Sidebar (Slide-Out Panel) -->
+    <div id="leaderboardPanel" class="fixed top-0 right-0 h-full w-80 bg-slate-950/98 border-l border-slate-800 shadow-2xl z-40 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-black text-amber-500 flex items-center gap-2">🔥 Trending Snaps</h2>
+            <button onclick="toggleLeaderboard()" class="text-slate-400 hover:text-white text-lg cursor-pointer">✕</button>
+        </div>
+        <div id="leaderboardList" class="flex flex-col gap-4 overflow-y-auto flex-1">
+            <div class="text-sm text-slate-500 text-center py-10">No hot snaps yet...</div>
+        </div>
+    </div>
+
+    <header class="w-full max-w-md text-center my-6 flex flex-col items-center">
         <h1 onclick="triggerAdminMode()" class="text-3xl font-extrabold text-blue-500 tracking-wide cursor-pointer select-none">
             Campus SnapLock
         </h1>
         <p class="text-sm text-slate-400 mt-1">Unlimited campus access for 1 GHS per week.</p>
         
-        <!-- Dynamic Download Counter UI element -->
-        <div id="creditsBadge" class="inline-block bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-xs mt-3 text-emerald-400 font-semibold hidden">
-            Remaining Downloads: <span id="creditsCount">0</span>
+        <div class="flex gap-2 mt-3">
+            <!-- Dynamic Download Counter UI element -->
+            <div id="creditsBadge" class="bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-[11px] text-emerald-400 font-semibold hidden">
+                Downloads: <span id="creditsCount">0</span>
+            </div>
+            <!-- Toggle Leaderboard Button -->
+            <button onclick="toggleLeaderboard()" class="bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-[11px] text-amber-400 font-semibold hover:bg-slate-700 transition-all cursor-pointer">
+                🔥 View Leaderboard
+            </button>
         </div>
     </header>
 
@@ -69,7 +86,7 @@
                               hover:file:bg-blue-700 file:cursor-pointer cursor-pointer"/>
             </label>
 
-            <!-- Brand New: Category Selection Dropdown -->
+            <!-- Category Selection Dropdown -->
             <div>
                 <label for="categoryInput" class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Select Tag</label>
                 <select id="categoryInput" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs text-slate-300 focus:outline-none focus:border-blue-500 transition-all cursor-pointer">
@@ -77,7 +94,7 @@
                     <option value="Gossip">☕ #CampusGossip</option>
                     <option value="Leaks">📝 #ExamLeaks</option>
                     <option value="Crush">❤️ #CampusCrush</option>
-                    <option value="Events">party #Events</option>
+                    <option value="Events">🎉 #Events</option>
                 </select>
             </div>
 
@@ -91,14 +108,14 @@
         </div>
     </div>
 
-    <!-- Brand New: Feed Filter Navigation Bar -->
+    <!-- Feed Filter Navigation Bar -->
     <div class="w-full max-w-6xl px-2 mb-4">
         <div class="flex justify-between items-center mb-3">
             <h3 class="text-sm font-bold text-slate-400 tracking-wider uppercase">⚡ The Weekly Vault</h3>
             <span class="text-[11px] text-slate-500">Snaps disappear after 7 days</span>
         </div>
         
-        <!-- Filter Tabs (Horizontal Scroll on Mobile) -->
+        <!-- Filter Tabs -->
         <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
             <button onclick="filterFeed('All')" id="filter-All" class="filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-blue-600 border-blue-500 text-white">
                 🌐 All Snaps
@@ -123,7 +140,7 @@
 
     <!-- Feed Container -->
     <main id="feedContainer" class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 my-2 px-2">
-        <div id="loadingText" class="text-center text-sm text-slate-400 py-10">Loading campus feed...</div>
+        <div id="loadingText" class="text-center text-sm text-slate-400 py-10 col-span-full">Loading campus feed...</div>
     </main>
 
     <script>
@@ -144,6 +161,7 @@
             checkSubscription();
             updateCreditsBadge();
             await fetchFeed();
+            await loadLeaderboard();
         };
 
         // --- WEEKLY SUBSCRIPTION DEVICE BARRIER ---
@@ -162,9 +180,9 @@
         function paySubscription() {
             const handler = PaystackPop.setup({
                 key: 'pk_test_c6122e53c25e5e1c57b69ccf1672ee8f35bc6b9e', 
-                email: 'subscriber@example.com',
                 amount: 100, 
                 currency: 'GHS',
+                email: 'subscriber@example.com',
                 callback: function(response) {
                     alert('Weekly Pass Activated! You have 7 days of unlimited access.');
                     const expiryTime = new Date().getTime() + (7 * 24 * 60 * 60 * 1000); 
@@ -265,8 +283,8 @@
             }
         }
 
-        // --- CLICK TO REVEAL SYSTEM ---
-        function revealPost(postId, isExpired) {
+        // --- CLICK TO REVEAL SYSTEM & VIEW COUNTER TRIGGER ---
+        async function revealPost(postId, isExpired) {
             if (isExpired) {
                 alert("🔒 This post is older than 7 days and has permanently expired!");
                 return;
@@ -274,6 +292,7 @@
 
             localStorage.setItem(`viewed_${postId}`, 'true');
 
+            // 1. Reveal Visual Elements
             const overlay = document.getElementById(`overlay-${postId}`);
             if (overlay) overlay.classList.add('hidden');
 
@@ -289,6 +308,24 @@
             if (badge) {
                 badge.innerHTML = "⚪ Viewed";
                 badge.className = "text-xs bg-slate-700/50 text-slate-500 px-2.5 py-1 rounded-full font-medium transition-all duration-300";
+            }
+
+            // 2. Safely Increment View Counter in Supabase via database RPC
+            try {
+                const { error } = await supabaseClient.rpc('increment_views', { post_id: postId });
+                if (error) throw error;
+                
+                // Update local UI element for the view count
+                const viewCountSpan = document.getElementById(`view-count-${postId}`);
+                if (viewCountSpan) {
+                    let currentViews = parseInt(viewCountSpan.innerText.match(/\d+/)[0]);
+                    viewCountSpan.innerText = `👁️ ${currentViews + 1} views`;
+                }
+
+                // Refresh Leaderboard Data asynchronously
+                loadLeaderboard();
+            } catch (err) {
+                console.error("Failed to increment view counter:", err.message);
             }
         }
 
@@ -318,7 +355,6 @@
             try {
                 let query = supabaseClient.from('posts').select('*');
 
-                // Filter by category if one is selected (and not 'All')
                 if (activeCategoryFilter !== "All") {
                     query = query.eq('category', activeCategoryFilter);
                 }
@@ -337,7 +373,6 @@
                 const now = new Date();
 
                 posts.forEach(post => {
-                    // Check if post is older than 7 days (7 * 24 * 60 * 60 * 1000 = 604,800,000 milliseconds)
                     const postTime = new Date(post.created_at);
                     const diffTime = Math.abs(now - postTime);
                     const isExpired = diffTime > (7 * 24 * 60 * 60 * 1000); 
@@ -345,15 +380,14 @@
                     const isViewed = localStorage.getItem(`viewed_${post.id}`) === 'true';
                     const isVideo = post.image_url.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) || post.image_url.includes('/video');
 
-                    // Set visual tag labels
                     const categoryLabel = post.category ? `#${post.category}` : '#General';
+                    const viewCount = post.views || 0;
 
                     const card = document.createElement('div');
                     card.className = `bg-slate-800 rounded-2xl overflow-hidden shadow-xl border flex flex-col relative transition-all duration-300 ${
                         isExpired ? 'border-red-900/40 opacity-75' : 'border-slate-700'
                     }`;
 
-                    // If expired, completely lock the media from loading
                     const mediaTag = isExpired
                         ? `<div class="w-full h-64 bg-slate-950 flex items-center justify-center text-slate-600 font-bold text-xs tracking-wider">🔒 SNAP EXPIRED & LOCKED</div>`
                         : (isVideo 
@@ -362,7 +396,6 @@
                             : `<img id="media-${post.id}" src="${post.image_url}" 
                                  class="w-full h-auto max-h-[500px] object-contain transition-all duration-500 ${isViewed ? '' : 'blur-xl opacity-20'}" alt="Campus Post">`);
 
-                    // Setup the badge dynamic classes based on status
                     let badgeHTML = '';
                     if (isExpired) {
                         badgeHTML = `<span class="text-xs bg-red-950/40 text-red-400 border border-red-900/50 px-2.5 py-1 rounded-full font-medium">🔒 Expired</span>`;
@@ -372,7 +405,6 @@
                         badgeHTML = `<span id="badge-${post.id}" class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-medium">🟢 Active</span>`;
                     }
 
-                    // Click barrier styling changes if post is expired
                     let overlayHTML = '';
                     if (!isViewed && !isExpired) {
                         overlayHTML = `
@@ -408,7 +440,10 @@
 
                         <div class="p-4 flex flex-col gap-3 mt-auto bg-slate-800 z-10">
                             <div class="flex justify-between items-center w-full">
-                                <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
+                                <div class="flex flex-col gap-1">
+                                    <p class="text-sm text-slate-300">${post.caption || 'No caption provided.'}</p>
+                                    <span id="view-count-${post.id}" class="text-[11px] text-slate-500 font-medium">👁️ ${viewCount} views</span>
+                                </div>
                                 
                                 <button onclick="handleDownloadClick('${post.image_url}', '${post.id}', ${isExpired})"
                                         class="text-xs font-semibold px-3.5 py-1.5 rounded-xl border transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer ${
@@ -434,6 +469,71 @@
             } catch (error) {
                 console.error("Error building feed:", error.message);
                 feedContainer.innerHTML = `<div class="text-center text-sm text-red-400 py-10 col-span-full">Error loading feed: ${error.message}</div>`;
+            }
+        }
+
+        // --- TRENDING LEADERBOARD LOGIC (TOP 3 NON-EXPIRED SNAPS) ---
+        function toggleLeaderboard() {
+            const panel = document.getElementById('leaderboardPanel');
+            if (panel.classList.contains('translate-x-full')) {
+                panel.classList.remove('translate-x-full');
+            } else {
+                panel.classList.add('translate-x-full');
+            }
+        }
+
+        async function loadLeaderboard() {
+            const listContainer = document.getElementById('leaderboardList');
+            try {
+                // Get all active snaps (Supabase sort on views descending)
+                const { data: posts, error } = await supabaseClient
+                    .from('posts')
+                    .select('*')
+                    .order('views', { ascending: false });
+
+                if (error) throw error;
+
+                listContainer.innerHTML = "";
+
+                // Filter out posts that are older than 7 days locally (keeps leaderboard strictly to active vault items)
+                const now = new Date();
+                const activeTrendingPosts = (posts || []).filter(post => {
+                    const postTime = new Date(post.created_at);
+                    const diffTime = Math.abs(now - postTime);
+                    return diffTime <= (7 * 24 * 60 * 60 * 1000); 
+                }).slice(0, 3); // Get top 3
+
+                if (activeTrendingPosts.length === 0) {
+                    listContainer.innerHTML = `<div class="text-xs text-slate-500 text-center py-10">No trending active snaps yet! Be the first to unlock one.</div>`;
+                    return;
+                }
+
+                // Render Top Cards
+                const medalEmojis = ["🏆", "🥈", "🥉"];
+                activeTrendingPosts.forEach((post, index) => {
+                    const item = document.createElement('div');
+                    item.className = "bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center gap-3 relative";
+                    
+                    const isVideo = post.image_url.toLowerCase().match(/\.(mp4|webm|ogg|mov|m4v)/) || post.image_url.includes('/video');
+                    const categoryLabel = post.category ? `#${post.category}` : '#General';
+
+                    item.innerHTML = `
+                        <div class="text-xl">${medalEmojis[index]}</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-1.5 mb-1">
+                                <span class="text-[10px] text-slate-400 font-bold">@Anonymous</span>
+                                <span class="text-[9px] text-blue-400 font-bold">${categoryLabel}</span>
+                            </div>
+                            <p class="text-xs text-slate-300 truncate font-medium">${post.caption || 'No caption'}</p>
+                            <span class="text-[10px] text-amber-500 font-semibold flex items-center gap-1 mt-1">🔥 ${post.views || 0} views</span>
+                        </div>
+                    `;
+                    listContainer.appendChild(item);
+                });
+
+            } catch (err) {
+                console.error("Error building leaderboard:", err.message);
+                listContainer.innerHTML = `<div class="text-xs text-red-500 text-center py-6">Could not load leaderboard.</div>`;
             }
         }
 
@@ -494,15 +594,15 @@
 
                 const { error: dbError } = await supabaseClient
                     .from('posts')
-                    .insert([{ caption: caption, image_url: imageUrl, category: category }]);
+                    .insert([{ caption: caption, image_url: imageUrl, category: category, views: 0 }]);
 
                 if (dbError) throw dbError;
 
                 alert("Awesome! Your snap has been uploaded successfully.");
                 fileInput.value = "";
                 captionInput.value = "";
-                // Reset to "All" category filter to let user see their newly uploaded post
                 await filterFeed('All');
+                await loadLeaderboard();
 
             } catch (error) {
                 console.error("Cloud processing failure:", error.message);
@@ -589,6 +689,7 @@
 
                 alert("Post successfully purged.");
                 await fetchFeed();
+                await loadLeaderboard();
 
             } catch (error) {
                 console.error("Deletion failed:", error.message);
