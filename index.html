@@ -115,7 +115,7 @@
 
         function paySubscription() {
             const handler = PaystackPop.setup({
-                key: 'pk_test_c6122e53c25e5e1c57b69ccf1672ee8f35bc6b9e', // <-- Your active Paystack Key!
+                key: 'pk_test_c6122e53c25e5e1c57b69ccf1672ee8f35bc6b9e', // Your active Paystack Key
                 email: 'subscriber@example.com',
                 amount: 100, // 100 pesewas = 1 GHS
                 currency: 'GHS',
@@ -177,10 +177,10 @@
                             </span>
                         </div>
 
-                        <div class="relative bg-slate-950 aspect-square flex items-center justify-center overflow-hidden">
-                            <!-- Unblurred feed image directly visible for subscribers -->
-                            <img id="image-${post.id}" src="${post.image_url}" 
-                                 class="w-full h-full object-cover" alt="Campus Post">
+                        <!-- Full view responsive container -->
+                        <div class="relative bg-slate-950 w-full flex items-center justify-center overflow-hidden">
+                           <img id="image-${post.id}" src="${post.image_url}" 
+                             class="w-full h-auto max-h-[500px] object-contain" alt="Campus Post">
                         </div>
 
                         <div class="p-4 flex justify-between items-center mt-auto">
