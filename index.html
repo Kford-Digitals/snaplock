@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" class="block" content="width=device-width, initial-scale=1.0">
     <title>Campus SnapLock</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://js.paystack.co/v1/inline.js"></script>
@@ -58,11 +58,9 @@
         <p class="text-sm text-slate-400 mt-1">Unlimited campus access for 1 GHS per week.</p>
         
         <div class="flex gap-2 mt-3">
-            <!-- Dynamic Download Counter UI element -->
             <div id="creditsBadge" class="bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-[11px] text-emerald-400 font-semibold hidden">
                 Downloads: <span id="creditsCount">0</span>
             </div>
-            <!-- Toggle Leaderboard Button -->
             <button onclick="toggleLeaderboard()" class="bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-[11px] text-amber-400 font-semibold hover:bg-slate-700 transition-all cursor-pointer">
                 🔥 View Leaderboard
             </button>
@@ -86,7 +84,6 @@
                               hover:file:bg-blue-700 file:cursor-pointer cursor-pointer"/>
             </label>
 
-            <!-- Category Selection Dropdown -->
             <div>
                 <label for="categoryInput" class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Select Tag</label>
                 <select id="categoryInput" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs text-slate-300 focus:outline-none focus:border-blue-500 transition-all cursor-pointer">
@@ -115,7 +112,6 @@
             <span class="text-[11px] text-slate-500">Snaps disappear after 7 days</span>
         </div>
         
-        <!-- Filter Tabs -->
         <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
             <button onclick="filterFeed('All')" id="filter-All" class="filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-blue-600 border-blue-500 text-white">
                 🌐 All Snaps
@@ -144,11 +140,8 @@
     </main>
 
     <script>
-        // Secret Admin Password
         const ADMIN_PASSWORD = "streetnevergiveup";
         let isAdminMode = false;
-
-        // Current Active Filter Tab
         let activeCategoryFilter = "All";
 
         // 1. SUPABASE CREDENTIALS
@@ -310,22 +303,62 @@
                 badge.className = "text-xs bg-slate-700/50 text-slate-500 px-2.5 py-1 rounded-full font-medium transition-all duration-300";
             }
 
+            // Reveal reaction bar
+            const rxBar = document.getElementById(`reaction-bar-${postId}`);
+            if (rxBar) rxBar.classList.remove('hidden');
+
             // 2. Safely Increment View Counter in Supabase via database RPC
             try {
                 const { error } = await supabaseClient.rpc('increment_views', { post_id: postId });
                 if (error) throw error;
                 
-                // Update local UI element for the view count
                 const viewCountSpan = document.getElementById(`view-count-${postId}`);
                 if (viewCountSpan) {
                     let currentViews = parseInt(viewCountSpan.innerText.match(/\d+/)[0]);
                     viewCountSpan.innerText = `👁️ ${currentViews + 1} views`;
                 }
 
-                // Refresh Leaderboard Data asynchronously
                 loadLeaderboard();
             } catch (err) {
                 console.error("Failed to increment view counter:", err.message);
+            }
+        }
+
+        // --- EMOJI REACTION CONTROLLER ---
+        async function submitReaction(postId, type) {
+            const reactedKey = `reacted_${type}_${postId}`;
+            if (localStorage.getItem(reactedKey)) {
+                alert(`You already gave a ${type === 'fire' ? '🔥' : type === 'shock' ? '😮' : '💀'} reaction to this snap!`);
+                return;
+            }
+
+            try {
+                const { error } = await supabaseClient.rpc('increment_reaction', { 
+                    post_id: postId, 
+                    reaction_type: type 
+                });
+
+                if (error) throw error;
+
+                // Update local storage so they can only react once per type on this post
+                localStorage.setItem(reactedKey, 'true');
+
+                // Update UI visually
+                const countSpan = document.getElementById(`rx-count-${type}-${postId}`);
+                if (countSpan) {
+                    let count = parseInt(countSpan.innerText);
+                    countSpan.innerText = count + 1;
+                }
+
+                // Add bounce animation to target emoji button
+                const btn = document.getElementById(`rx-btn-${type}-${postId}`);
+                if (btn) {
+                    btn.classList.add('scale-125', 'bg-slate-700');
+                    setTimeout(() => btn.classList.remove('scale-125'), 200);
+                }
+
+            } catch (err) {
+                console.error("Failed to post reaction:", err.message);
             }
         }
 
@@ -333,7 +366,6 @@
         async function filterFeed(category) {
             activeCategoryFilter = category;
             
-            // Highlight active button UI
             const tabs = document.querySelectorAll('.filter-tab');
             tabs.forEach(tab => {
                 if (tab.id === `filter-${category}`) {
@@ -343,11 +375,10 @@
                 }
             });
 
-            // Reload filtered feed
             await fetchFeed();
         }
 
-        // --- FEED BUILD SYSTEM (WITH 7-DAY EXPIRY FILTER & CATEGORIES) ---
+        // --- FEED BUILD SYSTEM ---
         async function fetchFeed() {
             const feedContainer = document.getElementById('feedContainer');
             feedContainer.innerHTML = `<div class="text-center text-sm text-slate-400 py-10 col-span-full">Filtering the locker feed...</div>`;
@@ -382,6 +413,11 @@
 
                     const categoryLabel = post.category ? `#${post.category}` : '#General';
                     const viewCount = post.views || 0;
+
+                    // Pull reaction data (defaulting to 0)
+                    const countFire = post.likes_fire || 0;
+                    const countShock = post.likes_shock || 0;
+                    const countDead = post.likes_dead || 0;
 
                     const card = document.createElement('div');
                     card.className = `bg-slate-800 rounded-2xl overflow-hidden shadow-xl border flex flex-col relative transition-all duration-300 ${
@@ -438,6 +474,19 @@
                            ${mediaTag}
                         </div>
 
+                        <!-- Dynamic Reaction Bar (Only shown to active/unlocked snaps) -->
+                        <div id="reaction-bar-${post.id}" class="px-4 py-2 border-b border-slate-700/50 bg-slate-850 flex items-center gap-2 z-10 ${(!isViewed || isExpired) ? 'hidden' : ''}">
+                            <button id="rx-btn-fire-${post.id}" onclick="submitReaction('${post.id}', 'fire')" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 px-3 py-1.5 rounded-full text-xs transition-all active:scale-95 cursor-pointer">
+                                <span>🔥</span> <span id="rx-count-fire-${post.id}" class="font-bold text-slate-300 text-[10px]">${countFire}</span>
+                            </button>
+                            <button id="rx-btn-shock-${post.id}" onclick="submitReaction('${post.id}', 'shock')" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 px-3 py-1.5 rounded-full text-xs transition-all active:scale-95 cursor-pointer">
+                                <span>😮</span> <span id="rx-count-shock-${post.id}" class="font-bold text-slate-300 text-[10px]">${countShock}</span>
+                            </button>
+                            <button id="rx-btn-dead-${post.id}" onclick="submitReaction('${post.id}', 'dead')" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 px-3 py-1.5 rounded-full text-xs transition-all active:scale-95 cursor-pointer">
+                                <span>💀</span> <span id="rx-count-dead-${post.id}" class="font-bold text-slate-300 text-[10px]">${countDead}</span>
+                            </button>
+                        </div>
+
                         <div class="p-4 flex flex-col gap-3 mt-auto bg-slate-800 z-10">
                             <div class="flex justify-between items-center w-full">
                                 <div class="flex flex-col gap-1">
@@ -455,7 +504,6 @@
                                 </button>
                             </div>
                             
-                            <!-- Hidden Admin Delete Button -->
                             <button onclick="event.stopPropagation(); deletePost('${post.id}', '${post.image_url}')" 
                                     class="delete-btn bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-red-500/30 transition-all active:scale-[0.95] ${isAdminMode ? '' : 'hidden'}">
                                 Delete
@@ -485,7 +533,6 @@
         async function loadLeaderboard() {
             const listContainer = document.getElementById('leaderboardList');
             try {
-                // Get all active snaps (Supabase sort on views descending)
                 const { data: posts, error } = await supabaseClient
                     .from('posts')
                     .select('*')
@@ -495,20 +542,18 @@
 
                 listContainer.innerHTML = "";
 
-                // Filter out posts that are older than 7 days locally (keeps leaderboard strictly to active vault items)
                 const now = new Date();
                 const activeTrendingPosts = (posts || []).filter(post => {
                     const postTime = new Date(post.created_at);
                     const diffTime = Math.abs(now - postTime);
                     return diffTime <= (7 * 24 * 60 * 60 * 1000); 
-                }).slice(0, 3); // Get top 3
+                }).slice(0, 3); 
 
                 if (activeTrendingPosts.length === 0) {
                     listContainer.innerHTML = `<div class="text-xs text-slate-500 text-center py-10">No trending active snaps yet! Be the first to unlock one.</div>`;
                     return;
                 }
 
-                // Render Top Cards
                 const medalEmojis = ["🏆", "🥈", "🥉"];
                 activeTrendingPosts.forEach((post, index) => {
                     const item = document.createElement('div');
@@ -537,7 +582,7 @@
             }
         }
 
-        // --- UPLOAD SYSTEM WITH CATEGORY AND 2-MINUTE VIDEO VALIDATION ---
+        // --- UPLOAD SYSTEM ---
         async function uploadPost() {
             const fileInput = document.getElementById('imageInput');
             const categoryInput = document.getElementById('categoryInput');
@@ -594,7 +639,15 @@
 
                 const { error: dbError } = await supabaseClient
                     .from('posts')
-                    .insert([{ caption: caption, image_url: imageUrl, category: category, views: 0 }]);
+                    .insert([{ 
+                        caption: caption, 
+                        image_url: imageUrl, 
+                        category: category, 
+                        views: 0,
+                        likes_fire: 0,
+                        likes_shock: 0,
+                        likes_dead: 0
+                    }]);
 
                 if (dbError) throw dbError;
 
