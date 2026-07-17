@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Campus SnapLock</title>
-    <link rel="manifest" href="manifest.json">
+    <link class="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://js.paystack.co/v1/inline.js"></script>
@@ -113,8 +113,9 @@
             <h3 class="text-sm font-bold text-slate-400 tracking-wider uppercase">⚡ The Weekly Vault</h3>
             <span class="text-[11px] text-slate-500">Snaps disappear after 7 days</span>
         </div>
-        
         <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+            <button id="installBtn" class="hidden bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer"> 📲 Install Campus SnapLock
+            </button>
             <button onclick="filterFeed('All')" id="filter-All" class="filter-tab px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer bg-blue-600 border-blue-500 text-white">
                 🌐 All Snaps
             </button>
@@ -145,6 +146,7 @@
         const ADMIN_PASSWORD = "streetnevergiveup";
         let isAdminMode = false;
         let activeCategoryFilter = "All";
+        let deferredPrompt; // Global tracking for app install prompt
 
         // 1. SUPABASE CREDENTIALS
         const SUPABASE_URL = "https://ubsktyaaygnzkakwtkel.supabase.co";
@@ -158,6 +160,27 @@
             await fetchFeed();
             await loadLeaderboard();
         };
+
+        // --- PWA NATIVE INSTALL CONTEXT TRACKER ---
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+
+            const installBtn = document.getElementById('installBtn');
+            if (installBtn) {
+                installBtn.classList.remove('hidden');
+
+                installBtn.addEventListener('click', async () => {
+                    installBtn.classList.add('hidden');
+                    deferredPrompt.prompt();
+
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log(`PWA Installation Choice Outcome: ${outcome}`);
+
+                    deferredPrompt = null;
+                });
+            }
+        });
 
         // --- WEEKLY SUBSCRIPTION DEVICE BARRIER ---
         function checkSubscription() {
