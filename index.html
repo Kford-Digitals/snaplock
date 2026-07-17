@@ -146,7 +146,7 @@
         const ADMIN_PASSWORD = "streetnevergiveup";
         let isAdminMode = false;
         let activeCategoryFilter = "All";
-        let deferredPrompt; // Global tracking for app install prompt
+        let deferredPrompt; 
 
         // 1. SUPABASE CREDENTIALS
         const SUPABASE_URL = "https://ubsktyaaygnzkakwtkel.supabase.co";
@@ -499,7 +499,7 @@
                            ${mediaTag}
                         </div>
 
-                        <!-- Dynamic Reaction Bar (Only shown to active/unlocked snaps) -->
+                        <!-- Dynamic Reaction Bar Component Block -->
                         <div id="reaction-bar-${post.id}" class="px-4 py-2 border-b border-slate-700/50 bg-slate-850 flex items-center gap-2 z-10 ${(!isViewed || isExpired) ? 'hidden' : ''}">
                             <button id="rx-btn-fire-${post.id}" onclick="submitReaction('${post.id}', 'fire')" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 px-3 py-1.5 rounded-full text-xs transition-all active:scale-95 cursor-pointer">
                                 <span>🔥</span> <span id="rx-count-fire-${post.id}" class="font-bold text-slate-300 text-[10px]">${countFire}</span>
@@ -512,6 +512,7 @@
                             </button>
                         </div>
 
+                        <!-- Main Action Tray Block Container -->
                         <div class="p-4 flex flex-col gap-3 mt-auto bg-slate-800 z-10">
                             <div class="flex justify-between items-center w-full">
                                 <div class="flex flex-col gap-1">
@@ -690,7 +691,7 @@
             }
         }
 
-        function getVideoDuration(file) {
+        UX: function getVideoDuration(file) {
             return new Promise((resolve, reject) => {
                 const videoElement = document.createElement('video');
                 videoElement.preload = 'metadata';
