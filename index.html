@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Campus SnapLock</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://js.paystack.co/v1/inline.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -17,7 +19,7 @@
         <p class="text-sm text-slate-300 mt-2 mb-6 max-w-[280px]">
             New device or expired pass detected. Subscribe for unlimited weekly campus access for just 1 GHS.
         </p>
-        <button onclick="paySubscription()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg transition-all active:scale-95 w-64">
+        <button onclick="paySubscription()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg transition-all active:scale-95 w-64 cursor-pointer">
             Activate Weekly Pass (1 GHS)
         </button>
         <span class="text-[10px] text-slate-500 mt-3">Secure payment via Mobile Money</span>
@@ -31,10 +33,10 @@
             Get a 5-Download Pack to save photos and videos directly to your gallery for just 1 GHS.
         </p>
         <div class="flex flex-col gap-2.5 w-64">
-            <button id="payDownloadBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all active:scale-95">
+            <button id="payDownloadBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer">
                 Buy 5 Downloads (1 GHS)
             </button>
-            <button onclick="closeDownloadModal()" class="text-xs text-slate-400 hover:text-white py-2">
+            <button onclick="closeDownloadModal()" class="text-xs text-slate-400 hover:text-white py-2 cursor-pointer">
                 Cancel
             </button>
         </div>
@@ -99,7 +101,7 @@
                    class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all">
 
             <button onclick="uploadPost()" id="uploadBtn" 
-                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2">
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer">
                 Upload to Cloud
             </button>
         </div>
@@ -285,7 +287,7 @@
 
             localStorage.setItem(`viewed_${postId}`, 'true');
 
-            // Reveal Visual Elements
+            // 1. Reveal Visual Elements
             const overlay = document.getElementById(`overlay-${postId}`);
             if (overlay) overlay.classList.add('hidden');
 
@@ -303,13 +305,11 @@
                 badge.className = "text-xs bg-slate-700/50 text-slate-500 px-2.5 py-1 rounded-full font-medium transition-all duration-300";
             }
 
-            // Reveal reaction and comment toggle bars
+            // Reveal reaction bar
             const rxBar = document.getElementById(`reaction-bar-${postId}`);
             if (rxBar) rxBar.classList.remove('hidden');
 
-            const commentToggle = document.getElementById(`comment-toggle-bar-${postId}`);
-            if (commentToggle) commentToggle.classList.remove('hidden');
-
+            // 2. Safely Increment View Counter in Supabase via database RPC
             try {
                 const { error } = await supabaseClient.rpc('increment_views', { post_id: postId });
                 if (error) throw error;
@@ -342,14 +342,17 @@
 
                 if (error) throw error;
 
+                // Update local storage so they can only react once per type on this post
                 localStorage.setItem(reactedKey, 'true');
 
+                // Update UI visually
                 const countSpan = document.getElementById(`rx-count-${type}-${postId}`);
                 if (countSpan) {
                     let count = parseInt(countSpan.innerText);
                     countSpan.innerText = count + 1;
                 }
 
+                // Add bounce animation to target emoji button
                 const btn = document.getElementById(`rx-btn-${type}-${postId}`);
                 if (btn) {
                     btn.classList.add('scale-125', 'bg-slate-700');
@@ -359,97 +362,6 @@
             } catch (err) {
                 console.error("Failed to post reaction:", err.message);
             }
-        }
-
-        // --- ANONYMOUS COMMENTS SYSTEM ---
-        async function toggleComments(postId) {
-            const commentDrawer = document.getElementById(`comment-drawer-${postId}`);
-            if (!commentDrawer) return;
-
-            if (commentDrawer.classList.contains('hidden')) {
-                commentDrawer.classList.remove('hidden');
-                await loadComments(postId);
-            } else {
-                commentDrawer.classList.add('hidden');
-            }
-        }
-
-        async function loadComments(postId) {
-            const commentsContainer = document.getElementById(`comments-list-${postId}`);
-            if (!commentsContainer) return;
-
-            commentsContainer.innerHTML = `<div class="text-[11px] text-slate-500 py-2 text-center animate-pulse">Loading comments...</div>`;
-
-            try {
-                const { data: comments, error } = await supabaseClient
-                    .from('comments')
-                    .select('*')
-                    .eq('post_id', postId)
-                    .order('created_at', { ascending: true });
-
-                if (error) throw error;
-
-                commentsContainer.innerHTML = "";
-
-                if (!comments || comments.length === 0) {
-                    commentsContainer.innerHTML = `<div class="text-[11px] text-slate-500 py-3 text-center">No comments yet. Write the first gossip!</div>`;
-                    return;
-                }
-
-                commentsContainer.innerHTML = comments.map(comment => `
-                    <div class="bg-slate-900 border border-slate-800/80 p-2.5 rounded-lg text-xs">
-                        <div class="flex justify-between text-[10px] text-slate-500 mb-1">
-                            <span class="font-bold text-slate-400">@Anonymous_Peer</span>
-                            <span>${new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                        <p class="text-slate-300 break-words leading-relaxed">${escapeHTML(comment.content)}</p>
-                    </div>
-                `).join('');
-
-                // Update the comments count badge on the card
-                const countBadge = document.getElementById(`comment-count-badge-${postId}`);
-                if (countBadge) {
-                    countBadge.innerText = comments.length;
-                    countBadge.classList.remove('hidden');
-                }
-
-            } catch (err) {
-                console.error("Failed to fetch comments:", err.message);
-                commentsContainer.innerHTML = `<div class="text-xs text-red-500 text-center py-2">Could not retrieve comments.</div>`;
-            }
-        }
-
-        async function postComment(postId) {
-            const inputField = document.getElementById(`comment-input-${postId}`);
-            if (!inputField) return;
-
-            const content = inputField.value.trim();
-            if (!content) {
-                alert("Comment text cannot be empty!");
-                return;
-            }
-
-            try {
-                const { error } = await supabaseClient
-                    .from('comments')
-                    .insert([{ post_id: postId, content: content }]);
-
-                if (error) throw error;
-
-                inputField.value = "";
-                await loadComments(postId);
-
-            } catch (err) {
-                console.error("Failed to insert comment:", err.message);
-                alert("Could not post your comment: " + err.message);
-            }
-        }
-
-        // Helper to prevent script injections in comments
-        function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, 
-                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-            );
         }
 
         // --- DYNAMIC FILTER SYSTEM ---
@@ -504,6 +416,7 @@
                     const categoryLabel = post.category ? `#${post.category}` : '#General';
                     const viewCount = post.views || 0;
 
+                    // Pull reaction data (defaulting to 0)
                     const countFire = post.likes_fire || 0;
                     const countShock = post.likes_shock || 0;
                     const countDead = post.likes_dead || 0;
@@ -563,7 +476,7 @@
                            ${mediaTag}
                         </div>
 
-                        <!-- Reactions Bar -->
+                        <!-- Dynamic Reaction Bar (Only shown to active/unlocked snaps) -->
                         <div id="reaction-bar-${post.id}" class="px-4 py-2 border-b border-slate-700/50 bg-slate-850 flex items-center gap-2 z-10 ${(!isViewed || isExpired) ? 'hidden' : ''}">
                             <button id="rx-btn-fire-${post.id}" onclick="submitReaction('${post.id}', 'fire')" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 px-3 py-1.5 rounded-full text-xs transition-all active:scale-95 cursor-pointer">
                                 <span>🔥</span> <span id="rx-count-fire-${post.id}" class="font-bold text-slate-300 text-[10px]">${countFire}</span>
@@ -574,31 +487,6 @@
                             <button id="rx-btn-dead-${post.id}" onclick="submitReaction('${post.id}', 'dead')" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 px-3 py-1.5 rounded-full text-xs transition-all active:scale-95 cursor-pointer">
                                 <span>💀</span> <span id="rx-count-dead-${post.id}" class="font-bold text-slate-300 text-[10px]">${countDead}</span>
                             </button>
-                        </div>
-
-                        <!-- Comments Activation Toggle Bar -->
-                        <div id="comment-toggle-bar-${post.id}" class="px-4 py-2 bg-slate-850/50 border-b border-slate-700/50 flex items-center justify-between z-10 text-xs ${(!isViewed || isExpired) ? 'hidden' : ''}">
-                            <button onclick="toggleComments('${post.id}')" class="text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1.5 cursor-pointer">
-                                <span>💬</span> Anonymous Comments
-                                <span id="comment-count-badge-${post.id}" class="bg-blue-600/30 text-blue-300 text-[10px] px-2 py-0.5 rounded-full font-bold hidden">0</span>
-                            </button>
-                        </div>
-
-                        <!-- Dropdown Comment Drawer (Lazy Fetched) -->
-                        <div id="comment-drawer-${post.id}" class="bg-slate-850 border-b border-slate-700/50 px-4 py-3 flex flex-col gap-3 z-10 hidden">
-                            <!-- Comment Stream List -->
-                            <div id="comments-list-${post.id}" class="flex flex-col gap-2 max-h-48 overflow-y-auto scrollbar-none">
-                                <div class="text-[11px] text-slate-500 py-1 text-center">No comments yet.</div>
-                            </div>
-                            
-                            <!-- Submit New Comment Form -->
-                            <div class="flex gap-2">
-                                <input type="text" id="comment-input-${post.id}" placeholder="Type anonymous comment..." 
-                                       class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all">
-                                <button onclick="postComment('${post.id}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all active:scale-95 cursor-pointer">
-                                    Send
-                                </button>
-                            </div>
                         </div>
 
                         <div class="p-4 flex flex-col gap-3 mt-auto bg-slate-800 z-10">
@@ -862,6 +750,19 @@
                 console.error("Deletion failed:", error.message);
                 alert("Error deleting post: " + error.message);
             }
+        }
+
+        // --- SERVICE WORKER REGISTRATION ---
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => {
+                navigator.serviceWorker.register("service-worker.js")
+                    .then(registration => {
+                        console.log("Service Worker registered:", registration.scope);
+                    })
+                    .catch(error => {
+                        console.log("Service Worker registration failed:", error);
+                    });
+            });
         }
     </script>
 </body>
