@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus SnapLock - Market</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col items-center p-4 relative overflow-x-hidden">
+
+    <!-- Top Navigation -->
+    <nav class="w-full max-w-md bg-slate-800 border border-slate-700 p-1.5 rounded-2xl flex gap-1 mb-4 shadow-xl">
+        <a href="index.html" class="flex-1 py-2 text-center text-xs font-black rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-all">
+            🔥 Vault Feed
+        </a>
+        <a href="market.html" class="flex-1 py-2 text-center text-xs font-black rounded-xl bg-blue-600 text-white transition-all">
+            🛍️ Campus Market
+        </a>
+    </nav>
+
+    <!-- Post Item Modal -->
+    <div id="postItemModal" class="fixed inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 z-50 hidden">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-5 rounded-2xl shadow-2xl space-y-3">
+            <div class="flex justify-between items-center mb-1">
+                <h3 class="text-sm font-extrabold text-blue-400">📦 List Item for Sale</h3>
+                <button onclick="toggleItemModal(false)" class="text-slate-400 hover:text-white text-lg cursor-pointer">✕</button>
+            </div>
+            
+            <input type="text" id="itemTitleInput" placeholder="Item Name (e.g. Economics 101 Book)" 
+                   class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+            
+            <div class="flex gap-2">
+                <input type="number" id="itemPriceInput" placeholder="Price (GHS)" 
+                       class="w-1/2 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                
+                <select id="itemCategoryInput" class="w-1/2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
+                    <option value="Tech">📱 Tech</option>
+                    <option value="Books">📚 Books</option>
+                    <option value="Dorm">🛋️ Dorm Gear</option>
+                    <option value="Services">💇 Services</option>
+                </select>
+            </div>
+
+            <input type="tel" id="sellerPhoneInput" placeholder="Your MoMo / Phone Number" 
+                   class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+
+            <input type="file" id="itemImageInput" accept="image/*" 
+                   class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"/>
+
+            <button onclick="uploadMarketItem()" id="postItemBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl transition shadow-lg cursor-pointer">
+                Publish Listing
+            </button>
+        </div>
+    </div>
+
+    <!-- Marketplace View Container -->
+    <div class="w-full max-w-md flex flex-col items-center space-y-4">
+        
+        <!-- Header -->
+        <div class="w-full bg-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center shadow-lg">
+            <div>
+                <h2 class="text-base font-extrabold text-white flex items-center gap-1.5">🛍️ Campus Market</h2>
+                <p class="text-[11px] text-slate-400">Buy & sell with students in-app</p>
+            </div>
+            <button onclick="toggleItemModal(true)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition cursor-pointer">
+                + Sell Item
+            </button>
+        </div>
+
+        <!-- Category Filters -->
+        <div class="w-full flex gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+            <button onclick="filterMarket('All')" id="mfilter-All" class="mfilter-tab bg-blue-600 text-white px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer">All Items</button>
+            <button onclick="filterMarket('Tech')" id="mfilter-Tech" class="mfilter-tab bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer">📱 Tech</button>
+            <button onclick="filterMarket('Books')" id="mfilter-Books" class="mfilter-tab bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer">📚 Books</button>
+            <button onclick="filterMarket('Dorm')" id="mfilter-Dorm" class="mfilter-tab bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer">🛋️ Dorm</button>
+            <button onclick="filterMarket('Services')" id="mfilter-Services" class="mfilter-tab bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer">💇 Services</button>
+        </div>
+
+        <!-- Listings Grid -->
+        <div id="marketGrid" class="w-full grid grid-cols-2 gap-3">
+            <div class="text-center text-xs text-slate-500 py-10 col-span-full">Loading marketplace items...</div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/market.js"></script>
+</body>
+</html>
