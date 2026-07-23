@@ -143,7 +143,10 @@
     </main>
 
     <script>
+        // --- CONFIGURATION ---
         const ADMIN_PASSWORD = "streetnevergiveup";
+        const PAYSTACK_PUBLIC_KEY = "pk_test_c4606a5f446d7a549e821ad4339bc78c66556e97"; // Replace with your actual Paystack Public Key
+        
         let isAdminMode = false;
         let activeCategoryFilter = "All";
         let deferredPrompt; 
@@ -197,8 +200,8 @@
 
         function paySubscription() {
             const handler = PaystackPop.setup({
-                key: 'pk_test_c4606a5f446d7a549e821ad4339bc78c66556e97', 
-                amount: 100, 
+                key: PAYSTACK_PUBLIC_KEY, 
+                amount: 100, // 1 GHS in pesewas
                 currency: 'GHS',
                 email: 'subscriber@example.com',
                 callback: function(response) {
@@ -259,9 +262,9 @@
 
         function payForDownloadPass(imageUrl, postId) {
             const handler = PaystackPop.setup({
-                key: 'pk_test_c6122e53c25e5e1c57b69ccf1672ee8f35bc6b9e',
+                key: PAYSTACK_PUBLIC_KEY,
                 email: 'downloader@example.com',
-                amount: 100, 
+                amount: 100, // 1 GHS in pesewas
                 currency: 'GHS',
                 callback: function(response) {
                     alert('Payment successful! 5 Download credits added.');
@@ -691,7 +694,8 @@
             }
         }
 
-        UX: function getVideoDuration(file) {
+        // --- MEDIA UTILS ---
+        function getVideoDuration(file) {
             return new Promise((resolve, reject) => {
                 const videoElement = document.createElement('video');
                 videoElement.preload = 'metadata';
