@@ -1,173 +1,226 @@
-// js/market.js
-let activeMarketCategory = "All";
+// Global State for Listings
+let allListings = [];
 
-window.onload = async function() {
-    await fetchMarketListings();
-};
+// Load listings when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    fetchMarketListings();
+});
 
+// Toggle Item Posting Modal
 function toggleItemModal(show) {
     const modal = document.getElementById('postItemModal');
-    if (show) modal.classList.remove('hidden');
-    else modal.classList.add('hidden');
-}
-
-async function fetchMarketListings() {
-    const grid = document.getElementById('marketGrid');
-    grid.innerHTML = `<div class="text-center text-xs text-slate-500 py-10 col-span-full">Filtering items...</div>`;
-
-    try {
-        let query = supabaseClient.from('listings').select('*');
-        if (activeMarketCategory !== 'All') {
-            query = query.eq('category', activeMarketCategory);
-        }
-
-        const { data: items, error } = await query.order('created_at', { ascending: false });
-        if (error) throw error;
-
-        grid.innerHTML = "";
-        if (!items || items.length === 0) {
-            grid.innerHTML = `<div class="text-center text-xs text-slate-500 py-10 col-span-full">No items listed in this category yet!</div>`;
-            return;
-        }
-
-        items.forEach(item => {
-            const card = document.createElement('div');
-            card.className = "bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden flex flex-col justify-between p-3 shadow-lg";
-
-            card.innerHTML = `
-                <div class="relative mb-2">
-                    <img src="${item.image_url || 'https://via.placeholder.com/300'}" alt="Item" class="w-full h-28 object-cover rounded-xl bg-slate-900">
-                    <span class="absolute top-2 left-2 bg-emerald-600/90 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow">
-                        GHS ${parseFloat(item.price).toFixed(2)}
-                    </span>
-                </div>
-                <div class="flex flex-col gap-1">
-                    <h3 class="text-xs font-bold text-white line-clamp-1">${item.title}</h3>
-                    <span class="text-[9px] text-blue-400 font-semibold">#${item.category}</span>
-                    <button onclick="buyMarketItem('${item.id}', '${item.title.replace(/'/g, "\\'")}', ${item.price})" 
-                            class="mt-2 w-full bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-[11px] font-extrabold py-2 rounded-xl transition cursor-pointer shadow-md">
-                        💳 Pay In-App
-                    </button>
-                </div>
-            `;
-            grid.appendChild(card);
-        });
-
-    } catch (err) {
-        console.error("Error loading market:", err.message);
-        grid.innerHTML = `<div class="text-center text-xs text-red-400 py-10 col-span-full">Error loading market items.</div>`;
+    if (!modal) return;
+    
+    if (show) {
+        modal.classList.remove('hidden');
+    } else {
+        modal.classList.add('hidden');
+        resetModalInputs();
     }
 }
 
-async function filterMarket(category) {
-    activeMarketCategory = category;
-    const tabs = document.querySelectorAll('.mfilter-tab');
-    tabs.forEach(tab => {
-        if (tab.id === `mfilter-${category}`) {
-            tab.className = "mfilter-tab bg-blue-600 text-white px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer";
-        } else {
-            tab.className = "mfilter-tab bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer";
-        }
-    });
-    await fetchMarketListings();
+// Reset Form Inputs
+function resetModalInputs() {
+    document.getElementById('itemTitleInput').value = '';
+    document.getElementById('itemPriceInput').value = '';
+    document.getElementById('sellerPhoneInput').value = '';
+    document.getElementById('itemImageInput').value = '';
 }
 
-async function uploadMarketItem() {
-    const title = document.getElementById('itemTitleInput').value.trim();
-    const price = document.getElementById('itemPriceInput').value;
-    const category = document.getElementById('itemCategoryInput').value;
-    const phone = document.getElementById('sellerPhoneInput').value.trim();
-    const fileInput = document.getElementById('itemImageInput');
-    const btn = document.getElementById('postItemBtn');
+// Fetch Listings from Supabase
+async function fetchMarketListings() {
+    const grid = document.getElementById('marketGrid');
+    if (!grid) return;
 
-    if (!title || !price || !phone || fileInput.files.length === 0) {
-        alert("Please complete all fields and attach an item image!");
+    try {
+        const { data, error } = await supabaseClient
+            .from('listings')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        allListings = data || [];
+        renderListings(allListings);
+
+    } catch (err) {
+        console.error("Error fetching listings:", err.message);
+        grid.innerHTML = `<div class="text-center text-xs text-red-400 py-10 col-span-full">Failed to load items. Check console.</div>`;
+    }
+}
+
+// Filter Listings by Category
+function filterMarket(category) {
+    // Update tab styling
+    document.querySelectorAll('.mfilter-tab').forEach(tab => {
+        tab.classList.remove('bg-blue-600', 'text-white');
+        tab.classList.add('bg-slate-800', 'text-slate-300');
+    });
+
+    const selectedTab = document.getElementById(`mfilter-${category}`);
+    if (selectedTab) {
+        selectedTab.classList.remove('bg-slate-800', 'text-slate-300');
+        selectedTab.classList.add('bg-blue-600', 'text-white');
+    }
+
+    if (category === 'All') {
+        renderListings(allListings);
+    } else {
+        const filtered = allListings.filter(item => item.category === category);
+        renderListings(filtered);
+    }
+}
+
+// Render Listings Grid
+function renderListings(items) {
+    const grid = document.getElementById('marketGrid');
+    if (!grid) return;
+
+    if (!items || items.length === 0) {
+        grid.innerHTML = `<div class="text-center text-xs text-slate-500 py-10 col-span-full">No listings found in this category.</div>`;
         return;
     }
 
-    btn.innerText = "Uploading Media...";
-    btn.disabled = true;
+    grid.innerHTML = items.map(item => `
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-3 flex flex-col justify-between shadow-lg">
+            <div>
+                <img src="${item.image_url || 'https://via.placeholder.com/300x200?text=No+Image'}" 
+                     alt="${item.title}" 
+                     class="w-full h-32 object-cover rounded-xl mb-2 bg-slate-900">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-700 text-blue-400 inline-block mb-1">
+                    ${item.category || 'General'}
+                </span>
+                <h3 class="text-xs font-bold text-white line-clamp-1">${item.title}</h3>
+                <p class="text-sm font-black text-emerald-400 mt-1">GHS ${parseFloat(item.price).toFixed(2)}</p>
+            </div>
+            
+            <button onclick="buyMarketItem('${item.id}', '${item.title.replace(/'/g, "\\'")}', '${item.price}')" 
+                    class="w-full mt-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2 rounded-xl transition cursor-pointer">
+                💳 Pay In-App
+            </button>
+        </div>
+    `).join('');
+}
+
+// Upload New Item to Supabase
+async function uploadMarketItem() {
+    const title = document.getElementById('itemTitleInput').value.trim();
+    const price = document.getElementById('itemPriceInput').value.trim();
+    const category = document.getElementById('itemCategoryInput').value;
+    const phone = document.getElementById('sellerPhoneInput').value.trim();
+    const imageFile = document.getElementById('itemImageInput').files[0];
+    const postBtn = document.getElementById('postItemBtn');
+
+    if (!title || !price || !phone) {
+        alert("Please fill in item name, price, and your phone number.");
+        return;
+    }
+
+    postBtn.innerText = "Publishing...";
+    postBtn.disabled = true;
 
     try {
-        const file = fileInput.files[0];
-        const fileName = `item_${Date.now()}.${file.name.split('.').pop()}`;
+        let imageUrl = '';
 
-        const { error: uploadErr } = await supabaseClient.storage
-            .from('campus-images')
-            .upload(fileName, file);
+        // Handle Image Upload if selected
+        if (imageFile) {
+            const fileExt = imageFile.name.split('.').pop();
+            const fileName = `${Math.random()}_${Date.now()}.${fileExt}`;
+            const filePath = `market/${fileName}`;
 
-        if (uploadErr) throw uploadErr;
+            const { error: uploadError } = await supabaseClient.storage
+                .from('snapshots')
+                .upload(filePath, imageFile);
 
-        const { data: urlData } = supabaseClient.storage
-            .from('campus-images')
-            .getPublicUrl(fileName);
+            if (uploadError) throw uploadError;
 
-        const { error: dbErr } = await supabaseClient
+            const { data } = supabaseClient.storage
+                .from('snapshots')
+                .getPublicUrl(filePath);
+
+            imageUrl = data.publicUrl;
+        }
+
+        // Insert into Database
+        const { error: dbError } = await supabaseClient
             .from('listings')
             .insert([{
                 title: title,
                 price: parseFloat(price),
                 category: category,
                 seller_phone: phone,
-                image_url: urlData.publicUrl
+                image_url: imageUrl
             }]);
 
-        if (dbErr) throw dbErr;
+        if (dbError) throw dbError;
 
-        alert("Item listed on Campus Market!");
+        alert("🎉 Item published successfully!");
         toggleItemModal(false);
-        await fetchMarketListings();
+        fetchMarketListings();
 
     } catch (err) {
-        console.error("Listing Error:", err.message);
-        alert("Failed to post listing: " + err.message);
+        console.error("Error publishing listing:", err.message);
+        alert("Failed to publish listing: " + err.message);
     } finally {
-        btn.innerText = "Publish Listing";
-        btn.disabled = false;
+        postBtn.innerText = "Publish Listing";
+        postBtn.disabled = false;
     }
 }
 
-// --- PAYSTACK CHECKOUT ENGINE ---
+// Paystack In-App Payment Trigger
 function buyMarketItem(listingId, itemTitle, itemPrice) {
     const buyerPhone = prompt(`Enter your Mobile Money phone number to confirm purchase for "${itemTitle}":`);
     if (!buyerPhone) return;
 
-    const amountInPesewas = Math.round(itemPrice * 100);
+    // Convert GHS price into pesewas
+    const amountInPesewas = Math.round(parseFloat(itemPrice) * 100);
 
-    const handler = PaystackPop.setup({
-        key: PAYSTACK_PUBLIC_KEY,
-        email: 'buyer@campus-snaplock.com',
-        amount: amountInPesewas,
-        currency: 'GHS',
-        callback: async function(response) {
-            const pickupCode = Math.floor(1000 + Math.random() * 9000).toString();
-
-            try {
-                const { error } = await supabaseClient
-                    .from('orders')
-                    .insert([{
-                        listing_id: listingId,
-                        item_title: itemTitle,
-                        amount: itemPrice,
-                        buyer_phone: buyerPhone,
-                        paystack_ref: response.reference,
-                        pickup_code: pickupCode,
-                        order_status: 'PAID_IN_ESCROW'
-                    }]);
-
-                if (error) throw error;
-
-                alert(`🎉 PAYMENT CONFIRMED!\n\nOrder Ref: ${response.reference}\nVerification Pickup Code: ${pickupCode}\n\nGive this 4-digit code to the seller when picking up your item on campus.`);
-
-            } catch (err) {
-                console.error("Order creation failed:", err.message);
-                alert("Payment received, but recording failed. Ref: " + response.reference);
-            }
-        },
-        onClose: function() {
-            alert('Transaction canceled.');
+    try {
+        if (typeof PaystackPop === 'undefined') {
+            alert("Paystack SDK failed to load. Please check your internet connection or disable ad-blockers!");
+            return;
         }
-    });
 
-    handler.openIframe();
+        const handler = PaystackPop.setup({
+            key: PAYSTACK_PUBLIC_KEY,
+            email: 'buyer@campus-snaplock.com',
+            amount: amountInPesewas,
+            currency: 'GHS',
+            ref: 'CSL_' + Math.floor((Math.random() * 1000000000) + 1),
+            callback: async function(response) {
+                const pickupCode = Math.floor(1000 + Math.random() * 9000).toString();
+
+                try {
+                    const { error } = await supabaseClient
+                        .from('orders')
+                        .insert([{
+                            listing_id: listingId,
+                            item_title: itemTitle,
+                            amount: parseFloat(itemPrice),
+                            buyer_phone: buyerPhone,
+                            paystack_ref: response.reference,
+                            pickup_code: pickupCode,
+                            order_status: 'PAID_IN_ESCROW'
+                        }]);
+
+                    if (error) throw error;
+
+                    alert(`🎉 PAYMENT CONFIRMED!\n\nOrder Ref: ${response.reference}\nYour Pickup Code: ${pickupCode}\n\nShow this code to the seller upon delivery!`);
+
+                } catch (err) {
+                    console.error("Order creation failed:", err.message);
+                    alert("Payment received, but database recording failed: " + err.message);
+                }
+            },
+            onClose: function() {
+                alert('Payment window closed.');
+            }
+        });
+
+        handler.openIframe();
+
+    } catch (err) {
+        console.error("Paystack Error:", err);
+        alert("Failed to open payment modal: " + err.message);
+    }
 }
