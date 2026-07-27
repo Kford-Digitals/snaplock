@@ -21,10 +21,10 @@ function toggleItemModal(show) {
 
 // Reset Form Inputs
 function resetModalInputs() {
-    document.getElementById('itemTitleInput').value = '';
-    document.getElementById('itemPriceInput').value = '';
-    document.getElementById('sellerPhoneInput').value = '';
-    document.getElementById('itemImageInput').value = '';
+    if (document.getElementById('itemTitleInput')) document.getElementById('itemTitleInput').value = '';
+    if (document.getElementById('itemPriceInput')) document.getElementById('itemPriceInput').value = '';
+    if (document.getElementById('sellerPhoneInput')) document.getElementById('sellerPhoneInput').value = '';
+    if (document.getElementById('itemImageInput')) document.getElementById('itemImageInput').value = '';
 }
 
 // Fetch Listings from Supabase
@@ -51,7 +51,6 @@ async function fetchMarketListings() {
 
 // Filter Listings by Category
 function filterMarket(category) {
-    // Update tab styling
     document.querySelectorAll('.mfilter-tab').forEach(tab => {
         tab.classList.remove('bg-blue-600', 'text-white');
         tab.classList.add('bg-slate-800', 'text-slate-300');
@@ -122,7 +121,6 @@ async function uploadMarketItem() {
     try {
         let imageUrl = '';
 
-        // Handle Image Upload if selected
         if (imageFile) {
             const fileExt = imageFile.name.split('.').pop();
             const fileName = `${Math.random()}_${Date.now()}.${fileExt}`;
@@ -141,7 +139,6 @@ async function uploadMarketItem() {
             imageUrl = data.publicUrl;
         }
 
-        // Insert into Database
         const { error: dbError } = await supabaseClient
             .from('listings')
             .insert([{
@@ -167,50 +164,32 @@ async function uploadMarketItem() {
     }
 }
 
-// Paystack In-App Payment Trigger
+// Fixed Paystack In-App Payment Trigger
 function buyMarketItem(listingId, itemTitle, itemPrice) {
     const buyerPhone = prompt(`Enter your Mobile Money phone number to confirm purchase for "${itemTitle}":`);
     if (!buyerPhone) return;
 
-    // Convert GHS price into pesewas
     const amountInPesewas = Math.round(parseFloat(itemPrice) * 100);
 
-    try {
-        if (typeof PaystackPop === 'undefined') {
-            alert("Paystack SDK failed to load. Please check your internet connection or disable ad-blockers!");
-            return;
-        }
+    if (typeof PaystackPop === 'undefined') {
+        alert("Paystack SDK failed to load. Please check your internet or disable ad-blockers!");
+        return;
+    }
 
+    try {
         const handler = PaystackPop.setup({
             key: "pk_test_c4606a5f446d7a549e821ad4339bc78c66556e97",
             email: 'buyer@campus-snaplock.com',
             amount: amountInPesewas,
             currency: 'GHS',
             ref: 'CSL_' + Math.floor((Math.random() * 1000000000) + 1),
-            callback: async function(response) {
-                const pickupCode = Math.floor(1000 + Math.random() * 9000).toString();
-
-                try {
-                    const { error } = await supabaseClient
-                        .from('orders')
-                        .insert([{
-                            listing_id: listingId,
-                            item_title: itemTitle,
-                            amount: parseFloat(itemPrice),
-                            buyer_phone: buyerPhone,
-                            paystack_ref: response.reference,
-                            pickup_code: pickupCode,
-                            order_status: 'PAID_IN_ESCROW'
-                        }]);
-
-                    if (error) throw error;
-
-                    alert(`🎉 PAYMENT CONFIRMED!\n\nOrder Ref: ${response.reference}\nYour Pickup Code: ${pickupCode}\n\nShow this code to the seller upon delivery!`);
-
-                } catch (err) {
-                    console.error("Order creation failed:", err.message);
-                    alert("Payment received, but database recording failed: " + err.message);
-                }
+            
+            // Explicit functions prevent the "Attribute callback must be a valid function" error
+            callback: function(response) {
+                handleOrderSuccess(listingId, itemTitle, itemPrice, buyerPhone, response.reference);
+            },
+            onSuccess: function(response) {
+                handleOrderSuccess(listingId, itemTitle, itemPrice, buyerPhone, response.reference);
             },
             onClose: function() {
                 alert('Payment window closed.');
@@ -220,7 +199,34 @@ function buyMarketItem(listingId, itemTitle, itemPrice) {
         handler.openIframe();
 
     } catch (err) {
-        console.error("Paystack Error:", err);
+        console.error("Paystack open error:", err);
         alert("Failed to open payment modal: " + err.message);
+    }
+}
+
+// Helper to record successful payments to Supabase
+async function handleOrderSuccess(listingId, itemTitle, itemPrice, buyerPhone, reference) {
+    const pickupCode = Math.floor(1000 + Math.random() * 9000).toString();
+
+    try {
+        const { error } = await supabaseClient
+            .from('orders')
+            .insert([{
+                listing_id: listingId,
+                item_title: itemTitle,
+                amount: parseFloat(itemPrice),
+                buyer_phone: buyerPhone,
+                paystack_ref: reference,
+                pickup_code: pickupCode,
+                order_status: 'PAID_IN_ESCROW'
+            }]);
+
+        if (error) throw error;
+
+        alert(`🎉 PAYMENT CONFIRMED!\n\nOrder Ref: ${reference}\nYour Pickup Code: ${pickupCode}\n\nShow this code to the seller upon delivery!`);
+
+    } catch (err) {
+        console.error("Database save failed:", err.message);
+        alert("Payment was successful, but saving order failed: " + err.message);
     }
 }
