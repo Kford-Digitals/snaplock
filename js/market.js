@@ -182,7 +182,7 @@ function buyMarketItem(listingId, itemTitle, itemPrice) {
         }
 
         const handler = PaystackPop.setup({
-            key: PAYSTACK_PUBLIC_KEY,
+            key: "pk_test_c4606a5f446d7a549e821ad4339bc78c66556e97",
             email: 'buyer@campus-snaplock.com',
             amount: amountInPesewas,
             currency: 'GHS',
