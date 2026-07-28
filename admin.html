@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapLock - Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen p-4 font-sans">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+            <div>
+                <h1 class="text-xl font-black text-blue-500">🛡️ Admin Control Panel</h1>
+                <p class="text-xs text-slate-400">Campus SnapLock Management</p>
+            </div>
+            <button onclick="fetchAdminStats()" class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg border border-slate-700">
+                🔄 Refresh Data
+            </button>
+        </div>
+
+        <!-- Metric Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Total Listings</p>
+                <p id="statListings" class="text-xl font-black text-white">0</p>
+            </div>
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Orders in Escrow</p>
+                <p id="statEscrow" class="text-xl font-black text-amber-400">0</p>
+            </div>
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 col-span-2 sm:col-span-1">
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Completed Payouts</p>
+                <p id="statCompleted" class="text-xl font-black text-emerald-400">0</p>
+            </div>
+        </div>
+
+        <!-- Section: Active Escrow Orders -->
+        <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 space-y-3">
+            <h2 class="text-sm font-bold text-slate-200">📦 Escrow & Pickup Code Release</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-900 text-slate-400 uppercase text-[10px]">
+                        <tr>
+                            <th class="p-2">Item</th>
+                            <th class="p-2">Price</th>
+                            <th class="p-2">Buyer Phone</th>
+                            <th class="p-2">Pickup Code</th>
+                            <th class="p-2">Status</th>
+                            <th class="p-2">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminOrdersTable" class="divide-y divide-slate-700">
+                        <tr><td colspan="6" class="p-4 text-center text-slate-500">Loading orders...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section: Manage Marketplace Listings -->
+        <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 space-y-3">
+            <h2 class="text-sm font-bold text-slate-200">🛒 Moderation: Active Listings</h2>
+            <div id="adminListingsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <p class="text-xs text-slate-500 col-span-full">Loading listings...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Script Imports -->
+    <script src="js/config.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>
