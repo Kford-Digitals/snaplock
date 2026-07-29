@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Campus SnapLock - Market</title>
+    <title>Kford Digital Store - Campus SnapLock</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -15,76 +15,84 @@
     <!-- Top Navigation -->
     <nav class="w-full max-w-md bg-slate-800 border border-slate-700 p-1.5 rounded-2xl flex gap-1 mb-4 shadow-xl">
         <a href="index.html" class="flex-1 py-2 text-center text-xs font-black rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-all">
-            🔥 Vault Feed
+            🔥 Digital Vault
         </a>
         <a href="market.html" class="flex-1 py-2 text-center text-xs font-black rounded-xl bg-blue-600 text-white transition-all">
-            🛍️ Campus Market
+            🛍️ Digital Store
         </a>
     </nav>
 
-    <!-- Post Item Modal -->
-    <div id="postItemModal" class="fixed inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 z-50 hidden">
-        <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-5 rounded-2xl shadow-2xl space-y-3">
-            <div class="flex justify-between items-center mb-1">
-                <h3 class="text-sm font-extrabold text-blue-400">📦 List Item for Sale</h3>
-                <button onclick="toggleItemModal(false)" class="text-slate-400 hover:text-white text-lg cursor-pointer">✕</button>
-            </div>
-            
-            <input type="text" id="itemTitleInput" placeholder="Item Name (e.g. Economics 101 Book)" 
-                   class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
-            
-            <div class="flex gap-2">
-                <input type="number" id="itemPriceInput" placeholder="Price (GHS)" 
-                       class="w-1/2 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
-                
-                <select id="itemCategoryInput" class="w-1/2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
-                    <option value="Tech">📱 Tech</option>
-                    <option value="Books">📚 Books</option>
-                    <option value="Dorm">🛋️ Dorm Gear</option>
-                    <option value="Services">💇 Services</option>
-                </select>
-            </div>
+    <!-- Main Store Container -->
+    <div class="w-full max-w-md flex flex-col items-center flex-grow">
+        <header class="w-full text-center my-2">
+            <h1 class="text-2xl font-black text-blue-500 tracking-wide">Kford Digital Store</h1>
+            <p class="text-xs text-slate-400 mt-1">Instant access to verified e-books, study guides, and digital materials.</p>
+        </header>
 
-            <input type="tel" id="sellerPhoneInput" placeholder="Your MoMo / Phone Number" 
-                   class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
-
-            <input type="file" id="itemImageInput" accept="image/*" 
-                   class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"/>
-
-            <button onclick="uploadMarketItem()" id="postItemBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl transition shadow-lg cursor-pointer">
-                Publish Listing
+        <!-- Hidden Sell Item Trigger / Modal (Temporarily hidden for Starter Account Compliance) -->
+         
+        <div class="w-full flex justify-end my-2">
+            <button onclick="toggleItemModal(true)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition">
+                + Post Item
             </button>
         </div>
-    </div>
+    
 
-    <!-- Marketplace View Container -->
-    <div class="w-full max-w-md flex flex-col items-center space-y-4">
-        
-        <!-- Header -->
-        <div class="w-full bg-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center shadow-lg">
-            <div>
-                <h2 class="text-base font-extrabold text-white flex items-center gap-1.5">🛍️ Campus Market</h2>
-                <p class="text-[11px] text-slate-400">Buy & sell with students in-app</p>
-            </div>
-            <button onclick="toggleItemModal(true)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition cursor-pointer">
-                + Sell Item
+        <!-- Category Filter Tabs -->
+        <div class="w-full flex gap-2 overflow-x-auto py-2 my-2 no-scrollbar">
+            <button id="mfilter-All" onclick="filterMarket('All')" class="mfilter-tab text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-600 text-white whitespace-nowrap">
+                All Resources
+            </button>
+            <button id="mfilter-Books" onclick="filterMarket('Books')" class="mfilter-tab text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 whitespace-nowrap">
+                📚 Books & Notes
+            </button>
+            <button id="mfilter-PastQuestions" onclick="filterMarket('PastQuestions')" class="mfilter-tab text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 whitespace-nowrap">
+                📝 Past Questions
+            </button>
+            <button id="mfilter-Guides" onclick="filterMarket('Guides')" class="mfilter-tab text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 whitespace-nowrap">
+                🎓 Study Guides
             </button>
         </div>
 
-        <!-- Category Filters -->
-        <div class="w-full flex gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
-            <button onclick="filterMarket('All')" id="mfilter-All" class="mfilter-tab bg-blue-600 text-white px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer">All Items</button>
-            <button onclick="filterMarket('Tech')" id="mfilter-Tech" class="mfilter-tab bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer">📱 Tech</button>
-            <button onclick="filterMarket('Books')" id="mfilter-Books" class="mfilter-tab bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer">📚 Books</button>
-            <button onclick="filterMarket('Dorm')" id="mfilter-Dorm" class="mfilter-tab bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer">🛋️ Dorm</button>
-            <button onclick="filterMarket('Services')" id="mfilter-Services" class="mfilter-tab bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full whitespace-nowrap cursor-pointer">💇 Services</button>
-        </div>
+        <!-- Digital Items Grid -->
+        <main id="marketGrid" class="w-full grid grid-cols-2 gap-3 mt-2">
+            <div class="text-center text-xs text-slate-500 py-10 col-span-full">Loading digital catalog...</div>
+        </main>
+    </div>
 
-        <!-- Listings Grid -->
-        <div id="marketGrid" class="w-full grid grid-cols-2 gap-3">
-            <div class="text-center text-xs text-slate-500 py-10 col-span-full">Loading marketplace items...</div>
+    <!-- Hidden Item Upload Modal (Commented out to prevent peer listing) -->
+    
+    <div id="postItemModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm p-4 space-y-3">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-bold text-white">List Digital Resource</h3>
+                <button onclick="toggleItemModal(false)" class="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+            <input type="text" id="itemTitleInput" placeholder="Resource Title (e.g. ECON 101 Notes)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <input type="number" id="itemPriceInput" placeholder="Price (GHS)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <select id="itemCategoryInput" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300">
+                <option value="Books">Books & Notes</option>
+                <option value="PastQuestions">Past Questions</option>
+                <option value="Guides">Study Guides</option>
+            </select>
+            <input type="tel" id="sellerPhoneInput" placeholder="Support Phone Number" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <input type="file" id="itemImageInput" accept="image/*" class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:bg-slate-700 file:text-white"/>
+            <button id="postItemBtn" onclick="uploadMarketItem()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-xl">
+                Publish Digital Resource
+            </button>
         </div>
     </div>
+    
+
+    <!-- FOOTER SECTION -->
+    <footer class="w-full max-w-md mt-16 border-t border-slate-800 pt-6 pb-8 text-center">
+        <div class="flex justify-center gap-6 text-slate-400 text-xs mb-3 font-medium">
+            <a href="about.html" class="hover:text-emerald-400 transition">About Us</a>
+            <a href="support.html" class="hover:text-emerald-400 transition">FAQ & Support</a>
+            <a href="terms.html" class="hover:text-emerald-400 transition">Terms of Service</a>
+        </div>
+        <p class="text-[10px] text-slate-500">Kford Digital Store is operated by Kford Digitals. Direct digital downloads secured by Paystack.</p>
+    </footer>
 
     <!-- Scripts -->
     <script src="js/config.js"></script>
