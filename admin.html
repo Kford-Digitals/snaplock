@@ -9,15 +9,17 @@
 </head>
 <body class="bg-slate-900 text-white min-h-screen p-4 font-sans">
 
-    <div class="max-w-4xl mx-auto space-y-6">
+    <!-- Container hidden by default until PIN authentication passes -->
+    <div id="adminContent" class="max-w-4xl mx-auto space-y-6 hidden">
         
         <!-- Header -->
         <div class="flex justify-between items-center border-b border-slate-800 pb-4">
             <div>
                 <h1 class="text-xl font-black text-blue-500">🛡️ Admin Control Panel</h1>
-                <p class="text-xs text-slate-400">Campus SnapLock Management</p>
+                <p class="text-xs text-slate-400">Campus SnapLock - Digital Store Admin</p>
             </div>
-            <button onclick="fetchAdminStats()" class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg border border-slate-700">
+            <button onclick="fetchAdminStats(); loadOrders(); loadListings();" 
+                    class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer transition">
                 🔄 Refresh Data
             </button>
         </div>
@@ -25,46 +27,98 @@
         <!-- Metric Cards -->
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                <p class="text-[10px] text-slate-400 uppercase font-bold">Total Listings</p>
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Active Digital Products</p>
                 <p id="statListings" class="text-xl font-black text-white">0</p>
             </div>
             <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                <p class="text-[10px] text-slate-400 uppercase font-bold">Orders in Escrow</p>
-                <p id="statEscrow" class="text-xl font-black text-amber-400">0</p>
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Total Sales Count</p>
+                <p id="statTotalSales" class="text-xl font-black text-amber-400">0</p>
             </div>
             <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 col-span-2 sm:col-span-1">
-                <p class="text-[10px] text-slate-400 uppercase font-bold">Completed Payouts</p>
-                <p id="statCompleted" class="text-xl font-black text-emerald-400">0</p>
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Total Revenue (GHS)</p>
+                <p id="statCompleted" class="text-xl font-black text-emerald-400">0.00</p>
             </div>
         </div>
 
-        <!-- Section: Active Escrow Orders -->
+        <!-- Section: Digital Orders & Purchase History -->
         <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 space-y-3">
-            <h2 class="text-sm font-bold text-slate-200">📦 Escrow & Pickup Code Release</h2>
+            <h2 class="text-sm font-bold text-slate-200">📥 Digital PDF / E-Book Purchases</h2>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-xs">
                     <thead class="bg-slate-900 text-slate-400 uppercase text-[10px]">
                         <tr>
-                            <th class="p-2">Item</th>
+                            <th class="p-2">E-Book / PDF Title</th>
                             <th class="p-2">Price</th>
-                            <th class="p-2">Buyer Phone</th>
-                            <th class="p-2">Pickup Code</th>
-                            <th class="p-2">Status</th>
-                            <th class="p-2">Action</th>
+                            <th class="p-2">Buyer Phone / Email</th>
+                            <th class="p-2">Delivery Status</th>
+                            <th class="p-2">Date</th>
                         </tr>
                     </thead>
                     <tbody id="adminOrdersTable" class="divide-y divide-slate-700">
-                        <tr><td colspan="6" class="p-4 text-center text-slate-500">Loading orders...</td></tr>
+                        <tr><td colspan="5" class="p-4 text-center text-slate-500">Loading purchase history...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- Section: Manage Marketplace Listings -->
+        <!-- Section: Upload New E-Book or PDF Resource -->
         <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 space-y-3">
-            <h2 class="text-sm font-bold text-slate-200">🛒 Moderation: Active Listings</h2>
+            <h2 class="text-sm font-bold text-slate-200">📚 Publish PDF or E-Book</h2>
+            
+            <form id="adminUploadForm" onsubmit="handleAdminUpload(event)" class="space-y-3 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 font-bold mb-1">E-Book / PDF Title</label>
+                        <input type="text" id="adminTitle" placeholder="e.g. ECON 101 Final Exam Prep (PDF)" required
+                               class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-slate-400 font-bold mb-1">Price (GHS)</label>
+                        <input type="number" step="0.01" id="adminPrice" placeholder="e.g. 15.00" required
+                               class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-400 font-bold mb-1">Category</label>
+                        <select id="adminCategory" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                            <option value="Books">E-Books & PDFs</option>
+                            <option value="PastQuestions">Past Questions & Solutions</option>
+                            <option value="Guides">Lecture Notes & Handouts</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-400 font-bold mb-1">Support Phone / Contact</label>
+                        <input type="tel" id="adminPhone" placeholder="e.g. 0551234567" required
+                               class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 font-bold mb-1">Cover Image Preview (Optional)</label>
+                    <input type="file" id="adminImage" accept="image/*"
+                           class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-300">
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 font-bold mb-1">PDF File or Download Link URL</label>
+                    <input type="text" id="adminFileUrl" placeholder="e.g. https://drive.google.com/file/d/xyz or upload PDF file" required
+                           class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                </div>
+
+                <button type="submit" id="adminSubmitBtn" 
+                        class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl transition cursor-pointer">
+                    🚀 Publish E-Book to Digital Store
+                </button>
+            </form>
+        </div>
+
+        <!-- Section: Manage Store Catalog -->
+        <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 space-y-3">
+            <h2 class="text-sm font-bold text-slate-200">🛒 Digital Catalog Moderation</h2>
             <div id="adminListingsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <p class="text-xs text-slate-500 col-span-full">Loading listings...</p>
+                <p class="text-xs text-slate-500 col-span-full">Loading digital products...</p>
             </div>
         </div>
 
