@@ -169,6 +169,8 @@ function buyMarketItem(listingId, itemTitle, itemPrice) {
     const buyerPhone = prompt(`Enter your Mobile Money phone number to confirm purchase for "${itemTitle}":`);
     if (!buyerPhone) return;
 
+    const buyerEmail = prompt(`Enter your email address for the purchase receipt:`) || 'buyer@campus-snaplock.com';
+
     const amountInPesewas = Math.round(parseFloat(itemPrice) * 100);
 
     if (typeof PaystackPop === 'undefined') {
@@ -178,29 +180,38 @@ function buyMarketItem(listingId, itemTitle, itemPrice) {
 
     try {
         const handler = PaystackPop.setup({
-            key: "pk_live_84428d1743617cc38a3ca1aa151a81e4cc57f3f7",
-            email: 'buyer@campus-snaplock.com',
+            key: 'pk_live_84428d1743617cc38a3ca1aa151a81e4cc57f3f7',
+            email: buyerEmail,
             amount: amountInPesewas,
             currency: 'GHS',
             ref: 'CSL_' + Math.floor((Math.random() * 1000000000) + 1),
-            
-            // Explicit functions prevent the "Attribute callback must be a valid function" error
-            callback: function(response) {
-                handleOrderSuccess(listingId, itemTitle, itemPrice, buyerPhone, response.reference);
-            },
-            onSuccess: function(response) {
-                handleOrderSuccess(listingId, itemTitle, itemPrice, buyerPhone, response.reference);
+            metadata: {
+                custom_fields: [
+                    {
+                        display_name: "Buyer Phone",
+                        variable_name: "buyer_phone",
+                        value: buyerPhone
+                    },
+                    {
+                        display_name: "Listing ID",
+                        variable_name: "listing_id",
+                        value: listingId
+                    }
+                ]
             },
             onClose: function() {
-                alert('Payment window closed.');
+                alert('Transaction was cancelled.');
+            },
+            callback: function(response) {
+                console.log('Payment successful. Reference:', response.reference);
+                handleOrderSuccess(listingId, itemTitle, itemPrice, buyerPhone, response.reference);
             }
         });
 
         handler.openIframe();
-
-    } catch (err) {
-        console.error("Paystack open error:", err);
-        alert("Failed to open payment modal: " + err.message);
+    } catch (error) {
+        console.error('Paystack initialization error:', error);
+        alert('Could not open payment window. Please try again.');
     }
 }
 
